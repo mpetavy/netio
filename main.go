@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/md5"
 	"crypto/rand"
 	"crypto/tls"
 	"flag"
@@ -25,10 +26,12 @@ var (
 	count            *int
 	timeout          *int
 	benchmark        *bool
+	useHash          *bool
 	random           *bool
 )
 
 type ZeroReader struct {
+	deadline time.Time
 }
 
 func (this ZeroReader) Read(p []byte) (n int, err error) {
@@ -36,10 +39,15 @@ func (this ZeroReader) Read(p []byte) (n int, err error) {
 		p[i] = 0
 	}
 
+	if time.Now().After(this.deadline) {
+		return 0, io.EOF
+	}
+
 	return len(p), nil
 }
 
 type RandomReader struct {
+	deadline time.Time
 }
 
 func (this RandomReader) Read(p []byte) (n int, err error) {
@@ -47,17 +55,22 @@ func (this RandomReader) Read(p []byte) (n int, err error) {
 		p[i] = byte(common.Rnd(256))
 	}
 
+	if time.Now().After(this.deadline) {
+		return 0, io.EOF
+	}
+
 	return len(p), nil
 }
 
 func init() {
-	common.Init("1.0.0", "2019", "net testing tool", "mpetavy", common.APACHE, false, nil, nil, run, 0)
+	common.Init("1.0.0", "2019", "network performance testing tool", "mpetavy", common.APACHE, false, nil, nil, run, 0)
 
 	client = flag.String("c", "", "client socket address to read from")
 	server = flag.String("s", "", "server socket server to listen")
 	useTls = flag.Bool("tls", false, "use tls")
 	useTlsClientAuth = flag.Bool("tlsclientauth", false, "use tls")
 	benchmark = flag.Bool("b", true, "benchmark (true) or transfer (false)")
+	useHash = flag.Bool("h", false, "hash transfer")
 	random = flag.Bool("r", false, "random bytes")
 	size = flag.String("bs", "1M", "blocksize")
 	count = flag.Int("lc", 10, "loop count")
@@ -73,6 +86,8 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 	var socket net.Conn
 	var tlsPackage *common.TLSPackage
 	var listener net.Listener
+
+	hash := md5.New()
 
 	if *server != "" {
 		if *useTls {
@@ -124,10 +139,6 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 				}
 			}
 		} else {
-			if *useTls {
-				common.Warn("TLS connection cannot be recovered from timeout for additional loop iteration -> loop count = 1")
-				*count = 1
-			}
 			common.Info("Block size: %s = %d bytes", *size, blockSize)
 			common.Info("Loop count: %d", *count)
 			common.Info("Timeout: %v", common.MsecToDuration(*timeout))
@@ -162,7 +173,11 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 
 		if *benchmark {
 			if *server != "" {
-				common.Ignore(io.Copy(ioutil.Discard, socket))
+				if *useHash {
+					common.Ignore(io.Copy(hash, socket))
+				} else {
+					common.Ignore(io.Copy(ioutil.Discard, socket))
+				}
 			} else {
 				ba := make([]byte, blockSize)
 
@@ -171,19 +186,29 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 				var sum int64
 
 				for i := 0; i < *count; i++ {
-					err = socket.SetDeadline(time.Now().Add(common.MsecToDuration(*timeout)))
-					if common.Error(err) {
-						panic(err)
-					}
-
+					deadline := time.Now().Add(common.MsecToDuration(*timeout))
 					n = -1
 
-					if *random {
-						//_, err = common.CopyWithContext(ctx, cancel, "read from socket", socket, RandomReader{}, int(blockSize))
-						n, err = io.CopyBuffer(socket, RandomReader{}, ba)
+					if *useHash {
+						if *random {
+							n, err = io.CopyBuffer(io.MultiWriter(socket, hash), RandomReader{
+								deadline: deadline,
+							}, ba)
+						} else {
+							n, err = io.CopyBuffer(io.MultiWriter(socket, hash), ZeroReader{
+								deadline: deadline,
+							}, ba)
+						}
 					} else {
-						//_, err = common.CopyWithContext(ctx, cancel, "read from socket", socket, ZeroReader{}, int(blockSize))
-						n, err = io.CopyBuffer(socket, ZeroReader{}, ba)
+						if *random {
+							n, err = io.CopyBuffer(socket, RandomReader{
+								deadline: deadline,
+							}, ba)
+						} else {
+							n, err = io.CopyBuffer(socket, ZeroReader{
+								deadline: deadline,
+							}, ba)
+						}
 					}
 
 					if err != nil {
@@ -219,6 +244,9 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 
 		if socket != nil {
 			common.Info("Disconnect: %s", socket.RemoteAddr().String())
+			if *useHash {
+				common.Info("MD5: %x", hash.Sum(nil))
+			}
 
 			common.Ignore(socket.Close())
 			socket = nil
