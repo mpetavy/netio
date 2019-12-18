@@ -21,17 +21,19 @@ var (
 	server           *string
 	useTls           *bool
 	useTlsClientAuth *bool
-	blockSizeString  *string
-	loopCount        *int
+	size             *string
+	count            *int
+	timeout          *int
 	benchmark        *bool
 	random           *bool
 )
 
 type ZeroReader struct {
+	buf []byte
 }
 
 func (this ZeroReader) Read(p []byte) (n int, err error) {
-	for i := 0; i < len(p); i++ {
+	for i := range p {
 		p[i] = 0
 	}
 
@@ -42,7 +44,7 @@ type RandomReader struct {
 }
 
 func (this RandomReader) Read(p []byte) (n int, err error) {
-	for i := 0; i < len(p); i++ {
+	for i := range p {
 		p[i] = byte(common.Rnd(256))
 	}
 
@@ -58,12 +60,13 @@ func init() {
 	useTlsClientAuth = flag.Bool("tlsclientauth", false, "use tls")
 	benchmark = flag.Bool("b", true, "benchmark (true) or transfer (false)")
 	random = flag.Bool("r", false, "random bytes")
-	blockSizeString = flag.String("bs", "1M", "blocksize")
-	loopCount = flag.Int("lc", 10, "loop count")
+	size = flag.String("bs", "1M", "blocksize")
+	count = flag.Int("lc", 10, "loop count")
+	timeout = flag.Int("t", common.DurationToMsec(time.Second), "block timeout")
 }
 
 func process(ctx context.Context, cancel context.CancelFunc) error {
-	blockSize, err := common.ParseMemory(*blockSizeString)
+	blockSize, err := common.ParseMemory(*size)
 	if common.Error(err) {
 		return err
 	}
@@ -103,7 +106,7 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 
 			for socket == nil {
 				tcplistener := listener.(*net.TCPListener)
-				err := tcplistener.SetDeadline(time.Now().Add(time.Millisecond * 250))
+				err := tcplistener.SetDeadline(time.Now().Add(common.MsecToDuration(*timeout)))
 
 				socket, err = listener.Accept()
 				if err != nil {
@@ -115,6 +118,15 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 				}
 			}
 		} else {
+			common.Info("Block size: %s = %d bytes", *size, blockSize)
+			common.Info("Loop count: %d", *count)
+			common.Info("Timeout: %v", common.MsecToDuration(*timeout))
+			if *random {
+				common.Info("Randonm bytes")
+			} else {
+				common.Info("Zero bytes")
+			}
+
 			if *useTls {
 				config := &tls.Config{
 					InsecureSkipVerify: true,
@@ -144,14 +156,11 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 			} else {
 				ba := make([]byte, blockSize)
 
-				common.Info("Block size: %s = %d bytes", *blockSizeString, blockSize)
-				common.Info("Loop count: %d", *loopCount)
-
 				var n int64
 				var err error
 
-				for i := 0; i < *loopCount; i++ {
-					err = socket.SetDeadline(time.Now().Add(time.Second))
+				for i := 0; i < *count; i++ {
+					err = socket.SetDeadline(time.Now().Add(common.MsecToDuration(*timeout)))
 					if common.Error(err) {
 						panic(err)
 					}
