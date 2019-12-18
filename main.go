@@ -168,6 +168,7 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 
 				var n int64
 				var err error
+				var sum int64
 
 				for i := 0; i < *count; i++ {
 					err = socket.SetDeadline(time.Now().Add(common.MsecToDuration(*timeout)))
@@ -192,7 +193,9 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 					}
 
 					common.Info("#%d Bytes written: %s", i, common.FormatMemory(int(n)))
+					sum += n
 				}
+				common.Info("Average bytes written: %s", common.FormatMemory(int(sum/int64(*count))))
 			}
 		} else {
 			fmt.Printf("copy\n")
