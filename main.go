@@ -29,7 +29,6 @@ var (
 )
 
 type ZeroReader struct {
-	buf []byte
 }
 
 func (this ZeroReader) Read(p []byte) (n int, err error) {
@@ -85,9 +84,7 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 			if *useTlsClientAuth {
 				tlsPackage.Config.ClientAuth = tls.RequireAndVerifyClientCert
 			}
-		}
 
-		if tlsPackage != nil {
 			listener, err = tls.Listen("tcp", *server, &tlsPackage.Config)
 			if common.Error(err) {
 				return err
@@ -104,20 +101,33 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 		if *server != "" {
 			common.Info("Accept connection: %s...", *server)
 
+			socketCh := make(chan net.Conn)
+			socket = nil
+
+			go func() {
+				var err error
+				var s net.Conn
+
+				s, err = listener.Accept()
+				common.WarnError(err)
+				if s != nil {
+					socketCh <- s
+				}
+			}()
+
 			for socket == nil {
-				tcplistener := listener.(*net.TCPListener)
-				err := tcplistener.SetDeadline(time.Now().Add(common.MsecToDuration(*timeout)))
-
-				socket, err = listener.Accept()
-				if err != nil {
-					if neterr, ok := err.(net.Error); ok && neterr.Timeout() {
-						continue
-					}
-
-					return err
+				select {
+				case <-time.After(time.Millisecond * 250):
+					continue
+				case socket = <-socketCh:
+					break
 				}
 			}
 		} else {
+			if *useTls {
+				common.Warn("TLS connection cannot be recovered from timeout for additional loop iteration -> loop count = 1")
+				*count = 1
+			}
 			common.Info("Block size: %s = %d bytes", *size, blockSize)
 			common.Info("Loop count: %d", *count)
 			common.Info("Timeout: %v", common.MsecToDuration(*timeout))
@@ -152,7 +162,7 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 
 		if *benchmark {
 			if *server != "" {
-				io.Copy(ioutil.Discard, socket)
+				common.Ignore(io.Copy(ioutil.Discard, socket))
 			} else {
 				ba := make([]byte, blockSize)
 
@@ -177,7 +187,7 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 
 					if err != nil {
 						if neterr, ok := err.(net.Error); !ok || !neterr.Timeout() {
-							return nil
+							return err
 						}
 					}
 
@@ -207,10 +217,7 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 		if socket != nil {
 			common.Info("Disconnect: %s", socket.RemoteAddr().String())
 
-			err := socket.Close()
-			if common.Error(err) {
-				panic(err)
-			}
+			common.Ignore(socket.Close())
 			socket = nil
 		}
 
