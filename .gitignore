@@ -1,15 +1,33 @@
-# Binaries for programs and plugins
+# Ignore all
+*
+
+# Unignore all with extensions
+!*.*
+
+# Unignore all dirs
+!*/
+
+### Above combination will ignore all files without extension ###
+
+# Ignore files with extension `.class` & `.sm`
 *.exe
-*.exe~
 *.dll
 *.so
 *.dylib
-
-# Test binary, built with `go test -c`
-*.test
-
-# Output of the go coverage tool, specifically when used with LiteIDE
+*.log*
+*.db
+*.bak
+*.dmp
+*.tmp
+*.class
+*.sm
 *.out
 
-# Dependency directories (remove the comment below to include it)
-# vendor/
+.glide
+.idea
+.vscode
+.rnd
+
+debug
+bin
+target
