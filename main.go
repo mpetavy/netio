@@ -4,15 +4,18 @@ import (
 	"context"
 	"crypto/md5"
 	"crypto/rand"
+	"crypto/sha256"
 	"crypto/tls"
 	"flag"
 	"fmt"
 	"github.com/mpetavy/common"
+	"hash"
 	"io"
 	"io/ioutil"
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -26,7 +29,7 @@ var (
 	count            *int
 	timeout          *int
 	benchmark        *bool
-	useHash          *bool
+	hashAlg          *string
 	random           *bool
 
 	deadline time.Time
@@ -40,7 +43,7 @@ func init() {
 	useTls = flag.Bool("tls", false, "use tls")
 	useTlsClientAuth = flag.Bool("tlsclientauth", false, "use tls")
 	benchmark = flag.Bool("b", true, "benchmark (true) or transfer (false)")
-	useHash = flag.Bool("h", false, "hash transfer")
+	hashAlg = flag.String("h", "", "hash algorithm")
 	random = flag.Bool("r", false, "random bytes")
 	size = flag.String("bs", "32K", "blocksize")
 	count = flag.Int("lc", 10, "loop count")
@@ -131,7 +134,19 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 	}
 
 	for {
-		hash := md5.New()
+		var hasher hash.Hash
+
+		switch *hashAlg {
+		case "":
+		case "md5":
+			hasher = md5.New()
+		case "sha224":
+			hasher = sha256.New224()
+		case "sha256":
+			hasher = sha256.New()
+		default:
+			return fmt.Errorf("unknown hash algorithm: %s", *hashAlg)
+		}
 
 		if *server != "" {
 			common.Info("Accept connection: %s...", *server)
@@ -193,8 +208,8 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 
 		if *benchmark {
 			if *server != "" {
-				if *useHash {
-					common.Ignore(io.Copy(hash, socket))
+				if hasher != nil {
+					common.Ignore(io.Copy(hasher, socket))
 				} else {
 					common.Ignore(io.Copy(ioutil.Discard, socket))
 				}
@@ -209,8 +224,8 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 					deadline = time.Now().Add(common.MsecToDuration(*timeout))
 					n = -1
 
-					if *useHash {
-						n, err = io.CopyBuffer(io.MultiWriter(socket, hash), reader, ba)
+					if hasher != nil {
+						n, err = io.CopyBuffer(io.MultiWriter(socket, hasher), reader, ba)
 					} else {
 						n, err = io.CopyBuffer(socket, reader, ba)
 					}
@@ -248,8 +263,8 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 
 		if socket != nil {
 			common.Info("Disconnect: %s", socket.RemoteAddr().String())
-			if *useHash {
-				common.Info("MD5: %x", hash.Sum(nil))
+			if hasher != nil {
+				common.Info("%s: %x", strings.ToUpper(*hashAlg), hasher.Sum(nil))
 			}
 
 			common.Ignore(socket.Close())
