@@ -28,39 +28,9 @@ var (
 	benchmark        *bool
 	useHash          *bool
 	random           *bool
+
+	deadline time.Time
 )
-
-type ZeroReader struct {
-	deadline time.Time
-}
-
-func (this ZeroReader) Read(p []byte) (n int, err error) {
-	for i := range p {
-		p[i] = 0
-	}
-
-	if time.Now().After(this.deadline) {
-		return 0, io.EOF
-	}
-
-	return len(p), nil
-}
-
-type RandomReader struct {
-	deadline time.Time
-}
-
-func (this RandomReader) Read(p []byte) (n int, err error) {
-	for i := range p {
-		p[i] = byte(common.Rnd(256))
-	}
-
-	if time.Now().After(this.deadline) {
-		return 0, io.EOF
-	}
-
-	return len(p), nil
-}
 
 func init() {
 	common.Init("1.0.0", "2019", "network performance testing tool", "mpetavy", common.APACHE, false, nil, nil, run, 0)
@@ -72,9 +42,52 @@ func init() {
 	benchmark = flag.Bool("b", true, "benchmark (true) or transfer (false)")
 	useHash = flag.Bool("h", false, "hash transfer")
 	random = flag.Bool("r", false, "random bytes")
-	size = flag.String("bs", "1M", "blocksize")
+	size = flag.String("bs", "32K", "blocksize")
 	count = flag.Int("lc", 10, "loop count")
 	timeout = flag.Int("t", common.DurationToMsec(time.Second), "block timeout")
+}
+
+type ZeroReader struct {
+}
+
+func NewZeroReader() *ZeroReader {
+	return &ZeroReader{}
+}
+
+func (this ZeroReader) Read(p []byte) (n int, err error) {
+	for i := range p {
+		p[i] = 0
+	}
+
+	if time.Now().After(deadline) {
+		return 0, io.EOF
+	}
+
+	return len(p), nil
+}
+
+type RandomReader struct {
+	template [256]byte
+}
+
+func NewRandomReadet(size int) *RandomReader {
+	r := RandomReader{}
+
+	for i := range r.template {
+		r.template[i] = byte(common.Rnd(256))
+	}
+
+	return &r
+}
+
+func (this RandomReader) Read(p []byte) (n int, err error) {
+	copy(p, this.template[:])
+
+	if time.Now().After(deadline) {
+		return 0, io.EOF
+	}
+
+	return len(p), nil
 }
 
 func process(ctx context.Context, cancel context.CancelFunc) error {
@@ -108,6 +121,13 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 				return err
 			}
 		}
+	}
+	var reader io.Reader
+
+	if *random {
+		reader = NewRandomReadet(int(blockSize))
+	} else {
+		reader = NewZeroReader()
 	}
 
 	for {
@@ -186,29 +206,13 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 				var sum int64
 
 				for i := 0; i < *count; i++ {
-					deadline := time.Now().Add(common.MsecToDuration(*timeout))
+					deadline = time.Now().Add(common.MsecToDuration(*timeout))
 					n = -1
 
 					if *useHash {
-						if *random {
-							n, err = io.CopyBuffer(io.MultiWriter(socket, hash), RandomReader{
-								deadline: deadline,
-							}, ba)
-						} else {
-							n, err = io.CopyBuffer(io.MultiWriter(socket, hash), ZeroReader{
-								deadline: deadline,
-							}, ba)
-						}
+						n, err = io.CopyBuffer(io.MultiWriter(socket, hash), reader, ba)
 					} else {
-						if *random {
-							n, err = io.CopyBuffer(socket, RandomReader{
-								deadline: deadline,
-							}, ba)
-						} else {
-							n, err = io.CopyBuffer(socket, ZeroReader{
-								deadline: deadline,
-							}, ba)
-						}
+						n, err = io.CopyBuffer(socket, reader, ba)
 					}
 
 					if err != nil {
