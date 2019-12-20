@@ -87,8 +87,6 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 	var tlsPackage *common.TLSPackage
 	var listener net.Listener
 
-	hash := md5.New()
-
 	if *server != "" {
 		if *useTls {
 			tlsPackage, err = common.GetTLSPackage()
@@ -113,6 +111,8 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 	}
 
 	for {
+		hash := md5.New()
+
 		if *server != "" {
 			common.Info("Accept connection: %s...", *server)
 
@@ -164,7 +164,7 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 
 				socket, err = net.Dial("tcp", *client)
 				if common.Error(err) {
-					return nil
+					return err
 				}
 			}
 		}
