@@ -73,7 +73,7 @@ type RandomReader struct {
 	template [256]byte
 }
 
-func NewRandomReadet(size int) *RandomReader {
+func NewRandomReadet() *RandomReader {
 	r := RandomReader{}
 
 	for i := range r.template {
@@ -128,7 +128,7 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 	var reader io.Reader
 
 	if *random {
-		reader = NewRandomReadet(int(blockSize))
+		reader = NewRandomReadet()
 	} else {
 		reader = NewZeroReader()
 	}
@@ -174,13 +174,13 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 				}
 			}
 		} else {
-			common.Info("Block size: %s = %d bytes", *size, blockSize)
+			common.Info("Block size: %s = %d Bytes", *size, blockSize)
 			common.Info("Loop count: %d", *count)
 			common.Info("Timeout: %v", common.MsecToDuration(*timeout))
 			if *random {
-				common.Info("Randonm bytes")
+				common.Info("Randonm Bytes")
 			} else {
-				common.Info("Zero bytes")
+				common.Info("Zero Bytes")
 			}
 
 			if *useTls {
@@ -236,10 +236,10 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 						}
 					}
 
-					common.Info("#%d Bytes written: %s", i, common.FormatMemory(int(n)))
+					common.Info("Loop #%d Bytes sent: %s", i, common.FormatMemory(int(n)))
 					sum += n
 				}
-				common.Info("Average bytes written: %s", common.FormatMemory(int(sum/int64(*count))))
+				common.Info("Average Bytes sent: %s", common.FormatMemory(int(sum/int64(*count))))
 			}
 		} else {
 			fmt.Printf("copy\n")
