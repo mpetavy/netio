@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"crypto/md5"
-	"crypto/rand"
 	"crypto/sha256"
 	"crypto/tls"
 	"flag"
@@ -28,7 +27,6 @@ var (
 	size             *string
 	count            *int
 	timeout          *int
-	benchmark        *bool
 	hashAlg          *string
 	random           *bool
 
@@ -42,7 +40,6 @@ func init() {
 	server = flag.String("s", "", "server socket server to listen")
 	useTls = flag.Bool("tls", false, "use tls")
 	useTlsClientAuth = flag.Bool("tlsclientauth", false, "use tls")
-	benchmark = flag.Bool("b", true, "benchmark (true) or transfer (false)")
 	hashAlg = flag.String("h", "", "hash algorithm")
 	random = flag.Bool("r", false, "random bytes")
 	size = flag.String("bs", "32K", "blocksize")
@@ -93,6 +90,35 @@ func (this RandomReader) Read(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
+func startSession() hash.Hash {
+	var hasher hash.Hash
+
+	switch *hashAlg {
+	case "":
+	case "md5":
+		hasher = md5.New()
+	case "sha224":
+		hasher = sha256.New224()
+	case "sha256":
+		hasher = sha256.New()
+	default:
+		common.Fatal(fmt.Errorf("unknown hash algorithm: %s", *hashAlg))
+	}
+
+	return hasher
+}
+
+func endSession(socket net.Conn, hasher hash.Hash) {
+	if socket != nil {
+		common.Info("Disconnect: %s", socket.RemoteAddr().String())
+		if hasher != nil {
+			common.Info("%s: %x", strings.ToUpper(*hashAlg), hasher.Sum(nil))
+		}
+
+		common.Ignore(socket.Close())
+	}
+}
+
 func process(ctx context.Context, cancel context.CancelFunc) error {
 	blockSize, err := common.ParseMemory(*size)
 	if common.Error(err) {
@@ -134,20 +160,6 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 	}
 
 	for {
-		var hasher hash.Hash
-
-		switch *hashAlg {
-		case "":
-		case "md5":
-			hasher = md5.New()
-		case "sha224":
-			hasher = sha256.New224()
-		case "sha256":
-			hasher = sha256.New()
-		default:
-			return fmt.Errorf("unknown hash algorithm: %s", *hashAlg)
-		}
-
 		if *server != "" {
 			common.Info("Accept connection: %s...", *server)
 
@@ -206,69 +218,62 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 
 		common.Info("Successfully connected: %s", socket.RemoteAddr().String())
 
-		if *benchmark {
-			if *server != "" {
+		if *server != "" {
+			go func(socket net.Conn) {
+				hasher := startSession()
+
 				if hasher != nil {
 					common.Ignore(io.Copy(hasher, socket))
 				} else {
 					common.Ignore(io.Copy(ioutil.Discard, socket))
 				}
-			} else {
-				ba := make([]byte, blockSize)
 
-				var n int64
-				var err error
-				var sum int64
-
-				for i := 0; i < *count; i++ {
-					deadline = time.Now().Add(common.MsecToDuration(*timeout))
-					n = -1
-
-					if hasher != nil {
-						n, err = io.CopyBuffer(io.MultiWriter(socket, hasher), reader, ba)
-					} else {
-						n, err = io.CopyBuffer(socket, reader, ba)
-					}
-
-					if err != nil {
-						if neterr, ok := err.(net.Error); !ok || !neterr.Timeout() {
-							return err
-						}
-					}
-
-					common.Info("Loop #%d Bytes sent: %s", i, common.FormatMemory(int(n)))
-					sum += n
-				}
-				common.Info("Average Bytes sent: %s", common.FormatMemory(int(sum/int64(*count))))
-			}
+				endSession(socket, hasher)
+			}(socket)
 		} else {
-			fmt.Printf("copy\n")
-			go func() {
-				_, err = common.CopyWithContext(ctx, cancel, "read from socket", os.Stdout, socket, -1)
-				if common.Error(err) {
-					panic(err)
-				}
-			}()
-			go func() {
-				_, err = common.CopyWithContext(ctx, cancel, "writer to socket", socket, rand.Reader, -1)
-				if common.Error(err) {
-					panic(err)
-				}
-			}()
+			var hasher hash.Hash
 
-			select {
-			case <-ctx.Done():
-			}
-		}
-
-		if socket != nil {
-			common.Info("Disconnect: %s", socket.RemoteAddr().String())
-			if hasher != nil {
-				common.Info("%s: %x", strings.ToUpper(*hashAlg), hasher.Sum(nil))
+			switch *hashAlg {
+			case "":
+			case "md5":
+				hasher = md5.New()
+			case "sha224":
+				hasher = sha256.New224()
+			case "sha256":
+				hasher = sha256.New()
+			default:
+				common.Fatal(fmt.Errorf("unknown hash algorithm: %s", *hashAlg))
 			}
 
-			common.Ignore(socket.Close())
-			socket = nil
+			ba := make([]byte, blockSize)
+
+			var n int64
+			var err error
+			var sum int64
+
+			for i := 0; i < *count; i++ {
+				deadline = time.Now().Add(common.MsecToDuration(*timeout))
+				n = -1
+
+				if hasher != nil {
+					n, err = io.CopyBuffer(io.MultiWriter(socket, hasher), reader, ba)
+				} else {
+					n, err = io.CopyBuffer(socket, reader, ba)
+				}
+
+				if err != nil {
+					if neterr, ok := err.(net.Error); !ok || !neterr.Timeout() {
+						return err
+					}
+				}
+
+				common.Info("Loop #%d Bytes sent: %s", i, common.FormatMemory(int(n)))
+				sum += n
+			}
+
+			common.Info("Average Bytes sent: %s", common.FormatMemory(int(sum/int64(*count))))
+
+			endSession(socket, hasher)
 		}
 
 		if *server == "" {
