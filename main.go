@@ -332,7 +332,7 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 						}
 					}
 
-					common.Info("Loop #%d Bytes sent per %v: %s", i, common.FormatMemory(int(n)))
+					common.Info("Loop #%d Bytes sent: %s", i, common.FormatMemory(int(n)))
 					sum += n
 				}
 
