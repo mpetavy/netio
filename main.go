@@ -22,15 +22,15 @@ import (
 var (
 	client           *string
 	server           *string
+	filename         *string
 	useTls           *bool
 	useTlsClientAuth *bool
-	size             *string
+	blocksizeString  *string
+	limitsizeString  *string
 	count            *int
 	timeout          *int
 	hashAlg          *string
 	random           *bool
-
-	deadline time.Time
 )
 
 func init() {
@@ -38,11 +38,13 @@ func init() {
 
 	client = flag.String("c", "", "client socket address to read from")
 	server = flag.String("s", "", "server socket server to listen")
+	filename = flag.String("f", "", "filename to send/ to receive")
 	useTls = flag.Bool("tls", false, "use tls")
 	useTlsClientAuth = flag.Bool("tlsclientauth", false, "use tls")
 	hashAlg = flag.String("h", "", "hash algorithm")
 	random = flag.Bool("r", false, "random bytes")
-	size = flag.String("bs", "32K", "blocksize")
+	blocksizeString = flag.String("bs", "32K", "block size in bytes")
+	limitsizeString = flag.String("l", "0", "limit bytes/sec")
 	count = flag.Int("lc", 10, "loop count")
 	timeout = flag.Int("t", common.DurationToMsec(time.Second), "block timeout")
 }
@@ -59,10 +61,6 @@ func (this ZeroReader) Read(p []byte) (n int, err error) {
 		p[i] = 0
 	}
 
-	if time.Now().After(deadline) {
-		return 0, io.EOF
-	}
-
 	return len(p), nil
 }
 
@@ -70,7 +68,7 @@ type RandomReader struct {
 	template [256]byte
 }
 
-func NewRandomReadet() *RandomReader {
+func NewRandomReader() *RandomReader {
 	r := RandomReader{}
 
 	for i := range r.template {
@@ -82,10 +80,6 @@ func NewRandomReadet() *RandomReader {
 
 func (this RandomReader) Read(p []byte) (n int, err error) {
 	copy(p, this.template[:])
-
-	if time.Now().After(deadline) {
-		return 0, io.EOF
-	}
 
 	return len(p), nil
 }
@@ -120,7 +114,12 @@ func endSession(socket net.Conn, hasher hash.Hash) {
 }
 
 func process(ctx context.Context, cancel context.CancelFunc) error {
-	blockSize, err := common.ParseMemory(*size)
+	blockSize, err := common.ParseMemory(*blocksizeString)
+	if common.Error(err) {
+		return err
+	}
+
+	limitSize, err := common.ParseMemory(*limitsizeString)
 	if common.Error(err) {
 		return err
 	}
@@ -154,7 +153,7 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 	var reader io.Reader
 
 	if *random {
-		reader = NewRandomReadet()
+		reader = NewRandomReader()
 	} else {
 		reader = NewZeroReader()
 	}
@@ -186,13 +185,25 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 				}
 			}
 		} else {
-			common.Info("Block size: %s = %d Bytes", *size, blockSize)
+			common.Info("Block size: %s = %d Bytes", *blocksizeString, blockSize)
+			common.Info("Limit bytes/sec: %s = %d Bytes", *limitsizeString, limitSize)
 			common.Info("Loop count: %d", *count)
 			common.Info("Timeout: %v", common.MsecToDuration(*timeout))
-			if *random {
-				common.Info("Randonm Bytes")
+
+			if *filename != "" {
+				b, _ := common.FileExists(*filename)
+
+				if !b {
+					return &common.ErrFileNotFound{*filename}
+				}
+
+				common.Info("Sending file: %s", *filename)
 			} else {
-				common.Info("Zero Bytes")
+				if *random {
+					common.Info("Sending: Random Bytes")
+				} else {
+					common.Info("Sending: Zero Bytes")
+				}
 			}
 
 			if *useTls {
@@ -216,17 +227,43 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 			}
 		}
 
-		common.Info("Successfully connected: %s", socket.RemoteAddr().String())
+		common.Info("Connected: %s", socket.RemoteAddr().String())
 
 		if *server != "" {
 			go func(socket net.Conn) {
 				hasher := startSession()
 
-				if hasher != nil {
-					common.Ignore(io.Copy(hasher, socket))
-				} else {
-					common.Ignore(io.Copy(ioutil.Discard, socket))
+				var f io.Writer
+
+				f = ioutil.Discard
+
+				if *filename != "" {
+					var file *os.File
+
+					common.Info("Create file: %s", *filename)
+
+					file, err = os.Create(*filename)
+					if err != nil {
+						common.Error(err)
+						return
+					}
+
+					f = file
+
+					defer func() {
+						common.Info("Close file: %s", *filename)
+
+						common.WarnError(file.Close())
+					}()
 				}
+
+				if hasher != nil {
+					common.Ignore(io.Copy(io.MultiWriter(f, hasher), socket))
+				} else {
+					common.Ignore(io.Copy(io.MultiWriter(f, ioutil.Discard), socket))
+				}
+
+				common.Ignore(io.Copy(hasher, socket))
 
 				endSession(socket, hasher)
 			}(socket)
@@ -251,27 +288,56 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 			var err error
 			var sum int64
 
-			for i := 0; i < *count; i++ {
-				deadline = time.Now().Add(common.MsecToDuration(*timeout))
-				n = -1
+			var writer io.Writer
 
-				if hasher != nil {
-					n, err = io.CopyBuffer(io.MultiWriter(socket, hasher), reader, ba)
-				} else {
-					n, err = io.CopyBuffer(socket, reader, ba)
-				}
-
-				if err != nil {
-					if neterr, ok := err.(net.Error); !ok || !neterr.Timeout() {
-						return err
-					}
-				}
-
-				common.Info("Loop #%d Bytes sent: %s", i, common.FormatMemory(int(n)))
-				sum += n
+			if hasher != nil {
+				writer = io.MultiWriter(socket, hasher)
+			} else {
+				writer = socket
 			}
 
-			common.Info("Average Bytes sent: %s", common.FormatMemory(int(sum/int64(*count))))
+			writer = common.NewThrottledWriter(writer, int(limitSize))
+
+			if *filename != "" {
+				f, err := os.Open(*filename)
+				if err != nil {
+					return err
+				}
+
+				start := time.Now()
+
+				n, err = io.Copy(writer, f)
+
+				common.WarnError(f.Close())
+
+				needed := time.Now().Sub(start)
+				needed.Seconds()
+
+				bytesPerSecond := int(float64(n) / needed.Seconds())
+
+				common.Info("Average Bytes sent: %s", common.FormatMemory(bytesPerSecond))
+			} else {
+				for i := 0; i < *count; i++ {
+					deadline := time.Now().Add(common.MsecToDuration(*timeout))
+					err = socket.SetDeadline(deadline)
+					if err != nil {
+						return err
+					}
+
+					n, err = io.CopyBuffer(writer, reader, ba)
+
+					if err != nil {
+						if neterr, ok := err.(net.Error); !ok || !neterr.Timeout() {
+							return err
+						}
+					}
+
+					common.Info("Loop #%d Bytes sent per %v: %s", i, common.FormatMemory(int(n)))
+					sum += n
+				}
+
+				common.Info("Average Bytes sent: %s", common.FormatMemory(int(sum/int64(*count))))
+			}
 
 			endSession(socket, hasher)
 		}
