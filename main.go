@@ -20,17 +20,18 @@ import (
 )
 
 var (
-	client           *string
-	server           *string
-	filename         *string
-	useTls           *bool
-	useTlsClientAuth *bool
-	blocksizeString  *string
-	limitsizeString  *string
-	count            *int
-	timeout          *int
-	hashAlg          *string
-	random           *bool
+	client              *string
+	server              *string
+	filename            *string
+	useTls              *bool
+	useTlsClientAuth    *bool
+	blocksizeString     *string
+	readThrottleString  *string
+	writeThrottleString *string
+	count               *int
+	timeout             *int
+	hashAlg             *string
+	random              *bool
 )
 
 func init() {
@@ -44,7 +45,8 @@ func init() {
 	hashAlg = flag.String("h", "", "hash algorithm")
 	random = flag.Bool("r", false, "random bytes")
 	blocksizeString = flag.String("bs", "32K", "block size in bytes")
-	limitsizeString = flag.String("l", "0", "limit bytes/sec")
+	readThrottleString = flag.String("tr", "0", "READ throttle bytes/sec")
+	writeThrottleString = flag.String("tw", "0", "WRITE Throttle bytes/sec")
 	count = flag.Int("lc", 10, "loop count")
 	timeout = flag.Int("t", common.DurationToMsec(time.Second), "block timeout")
 }
@@ -119,13 +121,19 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 		return err
 	}
 
-	limitSize, err := common.ParseMemory(*limitsizeString)
+	readThrottle, err := common.ParseMemory(*readThrottleString)
+	if common.Error(err) {
+		return err
+	}
+
+	writeThrottle, err := common.ParseMemory(*writeThrottleString)
 	if common.Error(err) {
 		return err
 	}
 
 	var socket net.Conn
 	var tlsPackage *common.TLSPackage
+	var tcpListener *net.TCPListener
 	var listener net.Listener
 
 	if *server != "" {
@@ -144,21 +152,23 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 				return err
 			}
 		} else {
-			listener, err = net.Listen("tcp", *server)
+			tcpAddr, err := net.ResolveTCPAddr("tcp", *server)
+			if common.Error(err) {
+				return err
+			}
+
+			tcpListener, err = net.ListenTCP("tcp", tcpAddr)
 			if common.Error(err) {
 				return err
 			}
 		}
 	}
-	var reader io.Reader
-
-	if *random {
-		reader = NewRandomReader()
-	} else {
-		reader = NewZeroReader()
-	}
 
 	for {
+		common.Info("Block size: %s = %d Bytes", *blocksizeString, blockSize)
+		common.Info("READ throttle bytes/sec: %s = %d Bytes", *readThrottleString, readThrottle)
+		common.Info("WRITE throttle bytes/sec: %s = %d Bytes", *writeThrottleString, writeThrottle)
+
 		if *server != "" {
 			common.Info("Accept connection: %s...", *server)
 
@@ -166,13 +176,29 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 			socket = nil
 
 			go func() {
-				var err error
-				var s net.Conn
 
-				s, err = listener.Accept()
-				common.WarnError(err)
-				if s != nil {
-					socketCh <- s
+				if *useTls {
+					s, err := listener.Accept()
+					common.WarnError(err)
+
+					if s != nil {
+						socketCh <- s
+					}
+				} else {
+					s, err := tcpListener.AcceptTCP()
+					common.WarnError(err)
+
+					//if readThrottle > 0 {
+					//	s.SetReadBuffer(1)
+					//}
+					//
+					//if writeThrottle > 0 {
+					//	s.SetWriteBuffer(1)
+					//}
+
+					if s != nil {
+						socketCh <- s
+					}
 				}
 			}()
 
@@ -185,8 +211,6 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 				}
 			}
 		} else {
-			common.Info("Block size: %s = %d Bytes", *blocksizeString, blockSize)
-			common.Info("Limit bytes/sec: %s = %d Bytes", *limitsizeString, limitSize)
 			common.Info("Loop count: %d", *count)
 			common.Info("Timeout: %v", common.MsecToDuration(*timeout))
 
@@ -220,10 +244,25 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 			} else {
 				common.Info("Dial connection: %s...", *client)
 
-				socket, err = net.Dial("tcp", *client)
+				tcpAddr, err := net.ResolveTCPAddr("tcp", *client)
 				if common.Error(err) {
 					return err
 				}
+
+				tcpCon, err := net.DialTCP("tcp", nil, tcpAddr)
+				if common.Error(err) {
+					return err
+				}
+
+				//if readThrottle > 0 {
+				//	tcpCon.SetReadBuffer(1)
+				//}
+				//
+				//if writeThrottle > 0 {
+				//	tcpCon.SetWriteBuffer(1)
+				//}
+
+				socket = tcpCon
 			}
 		}
 
@@ -257,15 +296,24 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 					}()
 				}
 
+				reader := common.NewThrottledReader(socket, int(readThrottle))
+				start := time.Now()
+
+				var n int64
+
 				if hasher != nil {
-					common.Ignore(io.Copy(io.MultiWriter(f, hasher), socket))
+					n, _ = io.Copy(io.MultiWriter(f, hasher), reader)
 				} else {
-					common.Ignore(io.Copy(io.MultiWriter(f, ioutil.Discard), socket))
+					n, _ = io.Copy(io.MultiWriter(f, ioutil.Discard), reader)
 				}
 
-				common.Ignore(io.Copy(hasher, socket))
+				end := time.Now()
 
 				endSession(socket, hasher)
+
+				d := end.Sub(start)
+
+				common.Info("Average Bytes received: %s", common.FormatMemory(int(float64(n)/float64(d.Milliseconds()))))
 			}(socket)
 		} else {
 			var hasher hash.Hash
@@ -286,7 +334,7 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 
 			var n int64
 			var err error
-			var sum int64
+			var sum float64
 
 			var writer io.Writer
 
@@ -296,7 +344,7 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 				writer = socket
 			}
 
-			writer = common.NewThrottledWriter(writer, int(limitSize))
+			writer = common.NewThrottledWriter(writer, int(writeThrottle))
 
 			if *filename != "" {
 				f, err := os.Open(*filename)
@@ -305,8 +353,9 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 				}
 
 				start := time.Now()
+				reader := common.NewThrottledReader(f, int(readThrottle))
 
-				n, err = io.Copy(writer, f)
+				n, err = io.Copy(writer, reader)
 
 				common.WarnError(f.Close())
 
@@ -317,6 +366,16 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 
 				common.Info("Average Bytes sent: %s", common.FormatMemory(bytesPerSecond))
 			} else {
+				var reader io.Reader
+
+				if *random {
+					reader = NewRandomReader()
+				} else {
+					reader = NewZeroReader()
+				}
+
+				reader = common.NewThrottledReader(reader, int(readThrottle))
+
 				for i := 0; i < *count; i++ {
 					deadline := time.Now().Add(common.MsecToDuration(*timeout))
 					err = socket.SetDeadline(deadline)
@@ -333,10 +392,10 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 					}
 
 					common.Info("Loop #%d Bytes sent: %s", i, common.FormatMemory(int(n)))
-					sum += n
+					sum += float64(n)
 				}
 
-				common.Info("Average Bytes sent: %s", common.FormatMemory(int(sum/int64(*count))))
+				common.Info("Average Bytes sent: %s", common.FormatMemory(int(sum/float64(*count))))
 			}
 
 			endSession(socket, hasher)
