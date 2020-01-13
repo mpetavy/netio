@@ -179,14 +179,14 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 
 				if *useTls {
 					s, err := listener.Accept()
-					common.WarnError(err)
+					common.Error(err)
 
 					if s != nil {
 						socketCh <- s
 					}
 				} else {
 					s, err := tcpListener.AcceptTCP()
-					common.WarnError(err)
+					common.Error(err)
 
 					//if readThrottle > 0 {
 					//	s.SetReadBuffer(1)
@@ -292,7 +292,7 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 					defer func() {
 						common.Info("Close file: %s", *filename)
 
-						common.WarnError(file.Close())
+						common.Error(file.Close())
 					}()
 				}
 
@@ -357,7 +357,7 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 
 				n, err = io.Copy(writer, reader)
 
-				common.WarnError(f.Close())
+				common.Error(f.Close())
 
 				needed := time.Now().Sub(start)
 				needed.Seconds()
