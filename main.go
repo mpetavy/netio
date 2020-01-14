@@ -212,7 +212,7 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 			}
 		} else {
 			common.Info("Loop count: %d", *count)
-			common.Info("Timeout: %v", common.MsecToDuration(*timeout))
+			common.Info("Timeout: %v", common.MillisecondToDuration(*timeout))
 
 			if *filename != "" {
 				b, _ := common.FileExists(*filename)
@@ -364,7 +364,7 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 
 				bytesPerSecond := int(float64(n) / needed.Seconds())
 
-				common.Info("Average Bytes sent: %s", common.FormatMemory(bytesPerSecond))
+				common.Info("Average Bytes sent: %s/%v", common.FormatMemory(bytesPerSecond), common.MillisecondToDuration(*timeout))
 			} else {
 				var reader io.Reader
 
@@ -377,7 +377,7 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 				reader = common.NewThrottledReader(reader, int(readThrottle))
 
 				for i := 0; i < *count; i++ {
-					deadline := time.Now().Add(common.MsecToDuration(*timeout))
+					deadline := time.Now().Add(common.MillisecondToDuration(*timeout))
 					err = socket.SetDeadline(deadline)
 					if err != nil {
 						return err
@@ -391,11 +391,11 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 						}
 					}
 
-					common.Info("Loop #%d Bytes sent: %s", i, common.FormatMemory(int(n)))
+					common.Info("Loop #%d Bytes sent: %s/%v", i, common.FormatMemory(int(n)), common.MillisecondToDuration(*timeout))
 					sum += float64(n)
 				}
 
-				common.Info("Average Bytes sent: %s", common.FormatMemory(int(sum/float64(*count))))
+				common.Info("Average Bytes sent: %s/%v", common.FormatMemory(int(sum/float64(*count))), common.MillisecondToDuration(*timeout))
 			}
 
 			endSession(socket, hasher)
