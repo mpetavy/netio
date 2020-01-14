@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	"crypto/sha256"
 	"crypto/tls"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"github.com/mpetavy/common"
@@ -132,6 +133,7 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 	}
 
 	var socket net.Conn
+	var tlsSocket *tls.Conn
 	var tlsPackage *common.TLSPackage
 	var tcpListener *net.TCPListener
 	var listener net.Listener
@@ -170,6 +172,12 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 		common.Info("WRITE throttle bytes/sec: %s = %d Bytes", *writeThrottleString, writeThrottle)
 
 		if *server != "" {
+			ips, err := common.GetActiveIPs(true)
+			if common.Error(err) {
+				return err
+			}
+
+			common.Info("Local IPs: %v", strings.Join(ips, " "))
 			common.Info("Accept connection: %s...", *server)
 
 			socketCh := make(chan net.Conn)
@@ -240,6 +248,22 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 				socket, err = tls.Dial("tcp", *client, config)
 				if common.Error(err) {
 					return err
+				}
+
+				var ok bool
+
+				tlsSocket, ok = socket.(*tls.Conn)
+				if ok {
+					ba, err := json.MarshalIndent(tlsSocket.ConnectionState(), "", "    ")
+					if common.Error(err) {
+						return err
+					}
+
+					common.Info("TLS connection state: %s", string(ba))
+
+					if !tlsSocket.ConnectionState().HandshakeComplete {
+						return fmt.Errorf("TLS handshake not completed")
+					}
 				}
 			} else {
 				common.Info("Dial connection: %s...", *client)
@@ -385,7 +409,7 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 
 					n, err = io.CopyBuffer(writer, reader, ba)
 
-					if err != nil {
+					if common.Error(err) {
 						if neterr, ok := err.(net.Error); !ok || !neterr.Timeout() {
 							return err
 						}
