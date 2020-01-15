@@ -25,11 +25,12 @@ var (
 	server              *string
 	filename            *string
 	useTls              *bool
-	useTlsClientAuth    *bool
+	useTlsInfo          *bool
+	useTlsVerify        *bool
 	blocksizeString     *string
 	readThrottleString  *string
 	writeThrottleString *string
-	count               *int
+	loopCount           *int
 	timeout             *int
 	hashAlg             *string
 	random              *bool
@@ -41,14 +42,15 @@ func init() {
 	client = flag.String("c", "", "client socket address to read from")
 	server = flag.String("s", "", "server socket server to listen")
 	filename = flag.String("f", "", "filename to send/ to receive")
-	useTls = flag.Bool("tls", false, "use tls")
-	useTlsClientAuth = flag.Bool("tlsclientauth", false, "use tls")
+	useTls = flag.Bool("tls", false, "use TLS")
+	useTlsInfo = flag.Bool("tls-info", false, "show TLS info")
+	useTlsVerify = flag.Bool("tls-verify", false, "TLS server verification/client verification")
 	hashAlg = flag.String("h", "", "hash algorithm")
 	random = flag.Bool("r", false, "random bytes")
 	blocksizeString = flag.String("bs", "32K", "block size in bytes")
 	readThrottleString = flag.String("tr", "0", "READ throttle bytes/sec")
 	writeThrottleString = flag.String("tw", "0", "WRITE Throttle bytes/sec")
-	count = flag.Int("lc", 10, "loop count")
+	loopCount = flag.Int("lc", 10, "loop count")
 	timeout = flag.Int("t", common.DurationToMsec(time.Second), "block timeout")
 }
 
@@ -145,7 +147,7 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 				return err
 			}
 
-			if *useTlsClientAuth {
+			if *useTlsVerify {
 				tlsPackage.Config.ClientAuth = tls.RequireAndVerifyClientCert
 			}
 
@@ -196,14 +198,6 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 					s, err := tcpListener.AcceptTCP()
 					common.Error(err)
 
-					//if readThrottle > 0 {
-					//	s.SetReadBuffer(1)
-					//}
-					//
-					//if writeThrottle > 0 {
-					//	s.SetWriteBuffer(1)
-					//}
-
 					if s != nil {
 						socketCh <- s
 					}
@@ -219,7 +213,13 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 				}
 			}
 		} else {
-			common.Info("Loop count: %d", *count)
+			if *useTls && *loopCount > 1 {
+				*loopCount = 1
+				common.Info("As of TLS connection loop count is reset to 1")
+			} else {
+				common.Info("Loop count: %d", *loopCount)
+			}
+
 			common.Info("Timeout: %v", common.MillisecondToDuration(*timeout))
 
 			if *filename != "" {
@@ -239,6 +239,10 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 			}
 
 			if *useTls {
+				if *useTlsVerify {
+					tlsPackage.Config.ClientAuth = tls.RequireAndVerifyClientCert
+				}
+
 				config := &tls.Config{
 					InsecureSkipVerify: true,
 				}
@@ -254,12 +258,14 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 
 				tlsSocket, ok = socket.(*tls.Conn)
 				if ok {
-					ba, err := json.MarshalIndent(tlsSocket.ConnectionState(), "", "    ")
-					if common.Error(err) {
-						return err
-					}
+					if *useTlsInfo {
+						ba, err := json.MarshalIndent(tlsSocket.ConnectionState(), "", "    ")
+						if common.Error(err) {
+							return err
+						}
 
-					common.Info("TLS connection state: %s", string(ba))
+						common.Info("TLS connection state: %s", string(ba))
+					}
 
 					if !tlsSocket.ConnectionState().HandshakeComplete {
 						return fmt.Errorf("TLS handshake not completed")
@@ -277,14 +283,6 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 				if common.Error(err) {
 					return err
 				}
-
-				//if readThrottle > 0 {
-				//	tcpCon.SetReadBuffer(1)
-				//}
-				//
-				//if writeThrottle > 0 {
-				//	tcpCon.SetWriteBuffer(1)
-				//}
 
 				socket = tcpCon
 			}
@@ -400,7 +398,7 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 
 				reader = common.NewThrottledReader(reader, int(readThrottle))
 
-				for i := 0; i < *count; i++ {
+				for i := 0; i < *loopCount; i++ {
 					deadline := time.Now().Add(common.MillisecondToDuration(*timeout))
 					err = socket.SetDeadline(deadline)
 					if err != nil {
@@ -409,17 +407,21 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 
 					n, err = io.CopyBuffer(writer, reader, ba)
 
-					if common.Error(err) {
+					if err != nil {
 						if neterr, ok := err.(net.Error); !ok || !neterr.Timeout() {
 							return err
 						}
 					}
 
-					common.Info("Loop #%d Bytes sent: %s/%v", i, common.FormatMemory(int(n)), common.MillisecondToDuration(*timeout))
+					if *loopCount > 1 {
+						common.Info("Loop #%d Bytes sent: %s/%v", i, common.FormatMemory(int(n)), common.MillisecondToDuration(*timeout))
+					} else {
+						common.Info("Bytes sent: %s/%v", common.FormatMemory(int(n)), common.MillisecondToDuration(*timeout))
+					}
 					sum += float64(n)
 				}
 
-				common.Info("Average Bytes sent: %s/%v", common.FormatMemory(int(sum/float64(*count))), common.MillisecondToDuration(*timeout))
+				common.Info("Average Bytes sent: %s/%v", common.FormatMemory(int(sum/float64(*loopCount))), common.MillisecondToDuration(*timeout))
 			}
 
 			endSession(socket, hasher)
