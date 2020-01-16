@@ -382,11 +382,14 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 				common.Error(f.Close())
 
 				needed := time.Now().Sub(start)
-				needed.Seconds()
 
-				bytesPerSecond := int(float64(n) / needed.Seconds())
+				if needed.Seconds() >= 1 {
+					bytesPerSecond := int(float64(n) / needed.Seconds())
 
-				common.Info("Average Bytes sent: %s/%v", common.FormatMemory(bytesPerSecond), common.MillisecondToDuration(*timeout))
+					common.Info("Average Bytes sent: %s/%v", common.FormatMemory(bytesPerSecond), common.MillisecondToDuration(*timeout))
+				} else {
+					common.Info("Bytes sent: %s/%v", common.FormatMemory(int(n)), needed)
+				}
 			} else {
 				var reader io.Reader
 
