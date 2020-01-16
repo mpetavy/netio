@@ -290,6 +290,8 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 
 		common.Info("Connected: %s", socket.RemoteAddr().String())
 
+		ba := make([]byte, blockSize)
+
 		if *server != "" {
 			go func(socket net.Conn) {
 				hasher := startSession()
@@ -324,9 +326,9 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 				var n int64
 
 				if hasher != nil {
-					n, _ = io.Copy(io.MultiWriter(f, hasher), reader)
+					n, _ = io.CopyBuffer(io.MultiWriter(f, hasher), reader, ba)
 				} else {
-					n, _ = io.Copy(io.MultiWriter(f, ioutil.Discard), reader)
+					n, _ = io.CopyBuffer(io.MultiWriter(f, ioutil.Discard), reader, ba)
 				}
 
 				end := time.Now()
@@ -352,8 +354,6 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 				common.Fatal(fmt.Errorf("unknown hash algorithm: %s", *hashAlg))
 			}
 
-			ba := make([]byte, blockSize)
-
 			var n int64
 			var err error
 			var sum float64
@@ -377,7 +377,7 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 				start := time.Now()
 				reader := common.NewThrottledReader(f, int(readThrottle))
 
-				n, err = io.Copy(writer, reader)
+				n, err = io.CopyBuffer(writer, reader, ba)
 
 				common.Error(f.Close())
 
