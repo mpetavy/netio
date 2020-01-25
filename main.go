@@ -213,8 +213,6 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 				}
 			}
 		} else {
-			common.Info("Timeout: %v", common.MillisecondToDuration(*timeout))
-
 			if *filename != "" {
 				b, _ := common.FileExists(*filename)
 
@@ -224,6 +222,8 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 
 				common.Info("Sending file: %s", *filename)
 			} else {
+				common.Info("Timeout: %v", common.MillisecondToDuration(*timeout))
+
 				if *useTls && *loopCount > 1 {
 					*loopCount = 1
 					common.Info("As of TLS connection loop count is reset to 1")
