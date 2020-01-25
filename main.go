@@ -213,13 +213,6 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 				}
 			}
 		} else {
-			if *useTls && *loopCount > 1 {
-				*loopCount = 1
-				common.Info("As of TLS connection loop count is reset to 1")
-			} else {
-				common.Info("Loop count: %d", *loopCount)
-			}
-
 			common.Info("Timeout: %v", common.MillisecondToDuration(*timeout))
 
 			if *filename != "" {
@@ -231,6 +224,13 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 
 				common.Info("Sending file: %s", *filename)
 			} else {
+				if *useTls && *loopCount > 1 {
+					*loopCount = 1
+					common.Info("As of TLS connection loop count is reset to 1")
+				} else {
+					common.Info("Loop count: %d", *loopCount)
+				}
+
 				if *random {
 					common.Info("Sending: Random Bytes")
 				} else {
