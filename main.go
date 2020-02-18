@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	"crypto/sha256"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -140,15 +141,21 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 	var tcpListener *net.TCPListener
 	var listener net.Listener
 
+	if *useTls {
+		tlsPackage, err = common.GetTLSPackage()
+		if common.Error(err) {
+			return err
+		}
+	}
+
 	if *server != "" {
 		if *useTls {
-			tlsPackage, err = common.GetTLSPackage()
-			if common.Error(err) {
-				return err
-			}
+			caCertPool := x509.NewCertPool()
+			caCertPool.AppendCertsFromPEM(tlsPackage.CertificateAsPem)
 
 			if *useTlsVerify {
 				tlsPackage.Config.ClientAuth = tls.RequireAndVerifyClientCert
+				tlsPackage.Config.ClientCAs = caCertPool
 			}
 
 			listener, err = tls.Listen("tcp", *server, &tlsPackage.Config)
@@ -174,12 +181,12 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 		common.Info("WRITE throttle bytes/sec: %s = %d Bytes", *writeThrottleString, writeThrottle)
 
 		if *server != "" {
-			ips, err := common.GetActiveIPs(true)
+			ips, err := common.GetActiveAddrs(true)
 			if common.Error(err) {
 				return err
 			}
 
-			common.Info("Local IPs: %v", strings.Join(ips, " "))
+			common.Info("Local IPs: %v", ips)
 			common.Info("Accept connection: %s...", *server)
 
 			socketCh := make(chan net.Conn)
@@ -190,6 +197,15 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 				if *useTls {
 					s, err := listener.Accept()
 					common.Error(err)
+
+					tlsConn, ok := s.(*tls.Conn)
+					if ok {
+						err := tlsConn.Handshake()
+
+						if common.Error(err) {
+							common.Error(s.Close())
+						}
+					}
 
 					if s != nil {
 						socketCh <- s
@@ -239,17 +255,11 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 			}
 
 			if *useTls {
-				if *useTlsVerify {
-					tlsPackage.Config.ClientAuth = tls.RequireAndVerifyClientCert
-				}
-
-				config := &tls.Config{
-					InsecureSkipVerify: true,
-				}
+				tlsPackage.Config.InsecureSkipVerify = !*useTlsVerify
 
 				common.Info("Dial TLS connection: %s...", *client)
 
-				socket, err = tls.Dial("tcp", *client, config)
+				socket, err = tls.Dial("tcp", *client, &tlsPackage.Config)
 				if common.Error(err) {
 					return err
 				}
