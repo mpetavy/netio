@@ -5,7 +5,6 @@ import (
 	"crypto/md5"
 	"crypto/sha256"
 	"crypto/tls"
-	"crypto/x509"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -137,25 +136,18 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 
 	var socket net.Conn
 	var tlsSocket *tls.Conn
-	var tlsPackage *common.TLSPackage
 	var tcpListener *net.TCPListener
 	var listener net.Listener
 
-	if *useTls {
-		tlsPackage, err = common.GetTLSPackage()
-		if common.Error(err) {
-			return err
-		}
-	}
-
 	if *server != "" {
 		if *useTls {
-			caCertPool := x509.NewCertPool()
-			caCertPool.AppendCertsFromPEM(tlsPackage.CertificateAsPem)
+			tlsPackage, err := common.GetTLSPackage()
+			if common.Error(err) {
+				return err
+			}
 
 			if *useTlsVerify {
 				tlsPackage.Config.ClientAuth = tls.RequireAndVerifyClientCert
-				tlsPackage.Config.ClientCAs = caCertPool
 			}
 
 			listener, err = tls.Listen("tcp", *server, &tlsPackage.Config)
@@ -255,6 +247,22 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 			}
 
 			if *useTls {
+				tlsPackage, err := common.GetTLSPackage()
+				if common.Error(err) {
+					return err
+				}
+
+				hostname, _, err := net.SplitHostPort(*client)
+				if common.Error(err) {
+					return err
+				}
+
+				if hostname == "" {
+					hostname = "localhost"
+				}
+
+				// set hostname for self-signed cetificates
+				tlsPackage.Config.ServerName = hostname
 				tlsPackage.Config.InsecureSkipVerify = !*useTlsVerify
 
 				common.Info("Dial TLS connection: %s...", *client)
