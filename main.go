@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"crypto/md5"
 	"crypto/sha256"
 	"crypto/tls"
@@ -14,9 +13,7 @@ import (
 	"io/ioutil"
 	"net"
 	"os"
-	"os/signal"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -118,7 +115,7 @@ func endSession(socket net.Conn, hasher hash.Hash) {
 	}
 }
 
-func process(ctx context.Context, cancel context.CancelFunc) error {
+func run() error {
 	blockSize, err := common.ParseMemory(*blocksizeString)
 	if common.Error(err) {
 		return err
@@ -454,30 +451,6 @@ func process(ctx context.Context, cancel context.CancelFunc) error {
 	}
 
 	return nil
-}
-
-func run() error {
-	ctrlC := make(chan os.Signal, 1)
-	signal.Notify(ctrlC, os.Interrupt, syscall.SIGTERM)
-
-	ctx, cancel := context.WithCancel(context.Background())
-
-	var err error
-
-	go func() {
-		err = process(ctx, cancel)
-		cancel()
-	}()
-
-	select {
-	case <-ctx.Done():
-		common.Error(err)
-	case <-ctrlC:
-		common.Info("Terminate: CTRL-C pressed")
-		cancel()
-	}
-
-	return err
 }
 
 func main() {
