@@ -51,41 +51,6 @@ func init() {
 	timeout = flag.Int("t", common.DurationToMsec(time.Second), "block timeout")
 }
 
-type ZeroReader struct {
-}
-
-func NewZeroReader() *ZeroReader {
-	return &ZeroReader{}
-}
-
-func (this ZeroReader) Read(p []byte) (n int, err error) {
-	for i := range p {
-		p[i] = 0
-	}
-
-	return len(p), nil
-}
-
-type RandomReader struct {
-	template [256]byte
-}
-
-func NewRandomReader() *RandomReader {
-	r := RandomReader{}
-
-	for i := range r.template {
-		r.template[i] = byte(common.Rnd(256))
-	}
-
-	return &r
-}
-
-func (this RandomReader) Read(p []byte) (n int, err error) {
-	copy(p, this.template[:])
-
-	return len(p), nil
-}
-
 func startSession() hash.Hash {
 	var hasher hash.Hash
 
@@ -138,7 +103,7 @@ func run() error {
 
 	if *server != "" {
 		if *useTls {
-			tlsPackage, err := common.GetTLSPackage()
+			_, tlsPackage, err := common.GetTlsPackage()
 			if common.Error(err) {
 				return err
 			}
@@ -244,7 +209,7 @@ func run() error {
 			}
 
 			if *useTls {
-				tlsPackage, err := common.GetTLSPackage()
+				_, tlsPackage, err := common.GetTlsPackage()
 				if common.Error(err) {
 					return err
 				}
@@ -409,9 +374,9 @@ func run() error {
 				var reader io.Reader
 
 				if *random {
-					reader = NewRandomReader()
+					reader = common.NewRandomReader()
 				} else {
-					reader = NewZeroReader()
+					reader = common.NewZeroReader()
 				}
 
 				reader = common.NewThrottledReader(reader, int(readThrottle))

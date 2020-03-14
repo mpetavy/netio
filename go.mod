@@ -12,4 +12,4 @@ require (
 	google.golang.org/genproto v0.0.0-20200227132054-3f1135a288c9 // indirect
 )
 
-// replace github.com/mpetavy/common => ../common
+replace github.com/mpetavy/common => ../common
