@@ -31,6 +31,9 @@ var (
 	timeout             *int
 	hashAlg             *string
 	random              *bool
+	interTimeout        *int
+	beforeTimeout       *int
+	afterTimeout        *int
 )
 
 func init() {
@@ -49,6 +52,9 @@ func init() {
 	writeThrottleString = flag.String("tw", "0", "WRITE Throttle bytes/sec")
 	loopCount = flag.Int("lc", 10, "loop count")
 	timeout = flag.Int("t", common.DurationToMsec(time.Second), "block timeout")
+	interTimeout = flag.Int("it", 0, "intermediate transfer test loop")
+	beforeTimeout = flag.Int("bt", 0, "connect, before transfer test loop")
+	afterTimeout = flag.Int("at", 0, "after transfer test loop, disconnect")
 }
 
 func startSession() hash.Hash {
@@ -71,6 +77,12 @@ func startSession() hash.Hash {
 
 func endSession(socket net.Conn, hasher hash.Hash) {
 	if socket != nil {
+		if *afterTimeout > 0 {
+			common.Info("after sleep timeout: %v", common.MillisecondToDuration(*afterTimeout))
+
+			time.Sleep(common.MillisecondToDuration(*afterTimeout))
+		}
+
 		common.Info("Disconnect: %s", socket.RemoteAddr().String())
 		if hasher != nil {
 			common.Info("%s: %x", strings.ToUpper(*hashAlg), hasher.Sum(nil))
@@ -320,6 +332,12 @@ func run() error {
 				common.Info("Average Bytes received: %s", common.FormatMemory(int(float64(n)/float64(d.Milliseconds()))))
 			}(socket)
 		} else {
+			if *beforeTimeout > 0 {
+				common.Info("before sleep timeout: %v", common.MillisecondToDuration(*beforeTimeout))
+
+				time.Sleep(common.MillisecondToDuration(*beforeTimeout))
+			}
+
 			var hasher hash.Hash
 
 			switch *hashAlg {
@@ -398,6 +416,12 @@ func run() error {
 
 					if *loopCount > 1 {
 						common.Info("Loop #%d Bytes sent: %s/%v", i, common.FormatMemory(int(n)), common.MillisecondToDuration(*timeout))
+
+						if *interTimeout > 0 {
+							common.Info("intermediate sleep timeout: %v", common.MillisecondToDuration(*interTimeout))
+
+							time.Sleep(common.MillisecondToDuration(*interTimeout))
+						}
 					} else {
 						common.Info("Bytes sent: %s/%v", common.FormatMemory(int(n)), common.MillisecondToDuration(*timeout))
 					}
