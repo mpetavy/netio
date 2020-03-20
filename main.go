@@ -115,7 +115,7 @@ func run() error {
 
 	if *server != "" {
 		if *useTls {
-			_, tlsPackage, err := common.GetTlsPackage()
+			tlsPackage, err := common.GetTlsPackage()
 			if common.Error(err) {
 				return err
 			}
@@ -221,7 +221,7 @@ func run() error {
 			}
 
 			if *useTls {
-				_, tlsPackage, err := common.GetTlsPackage()
+				tlsPackage, err := common.GetTlsPackage()
 				if common.Error(err) {
 					return err
 				}
