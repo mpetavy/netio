@@ -37,7 +37,7 @@ var (
 )
 
 func init() {
-	common.Init("1.0.0", "2019", "network performance testing tool", "mpetavy", fmt.Sprintf("https://github.com/mpetavy/%s", common.Title()), common.APACHE, false, nil, nil, run, 0)
+	common.Init("1.0.0", "2019", "network performance testing tool", "mpetavy", fmt.Sprintf("https://github.com/mpetavy/%s", common.Title()), common.APACHE, nil, nil, run, 0)
 
 	client = flag.String("c", "", "client socket address to read from")
 	server = flag.String("s", "", "server socket server to listen")
