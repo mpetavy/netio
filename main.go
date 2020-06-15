@@ -69,7 +69,7 @@ func startSession() hash.Hash {
 	case "sha256":
 		hasher = sha256.New()
 	default:
-		common.Fatal(fmt.Errorf("unknown hash algorithm: %s", *hashAlg))
+		common.Error(fmt.Errorf("unknown hash algorithm: %s", *hashAlg))
 	}
 
 	return hasher
@@ -199,7 +199,7 @@ func run() error {
 				b, _ := common.FileExists(*filename)
 
 				if !b {
-					return &common.ErrFileNotFound{*filename}
+					return &common.ErrFileNotFound{FileName: *filename}
 				}
 
 				common.Info("Sending file: %s", *filename)
@@ -349,7 +349,7 @@ func run() error {
 			case "sha256":
 				hasher = sha256.New()
 			default:
-				common.Fatal(fmt.Errorf("unknown hash algorithm: %s", *hashAlg))
+				common.Error(fmt.Errorf("unknown hash algorithm: %s", *hashAlg))
 			}
 
 			var n int64
@@ -376,10 +376,13 @@ func run() error {
 				reader := common.NewThrottledReader(f, int(readThrottle))
 
 				n, err = io.CopyBuffer(writer, reader, ba)
+				if err != nil {
+					return err
+				}
 
 				common.Error(f.Close())
 
-				needed := time.Now().Sub(start)
+				needed := time.Since(start)
 
 				if needed.Seconds() >= 1 {
 					bytesPerSecond := int(float64(n) / needed.Seconds())
