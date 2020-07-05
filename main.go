@@ -147,7 +147,7 @@ func run() error {
 		common.Info("WRITE throttle bytes/sec: %s = %d Bytes", *writeThrottleString, writeThrottle)
 
 		if *server != "" {
-			ips, err := common.GetActiveAddrs(true)
+			ips, err := common.GetHostAddrs(true)
 			if common.Error(err) {
 				return err
 			}
