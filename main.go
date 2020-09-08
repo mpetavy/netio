@@ -51,7 +51,7 @@ func init() {
 	readThrottleString = flag.String("tr", "0", "READ throttle bytes/sec")
 	writeThrottleString = flag.String("tw", "0", "WRITE Throttle bytes/sec")
 	loopCount = flag.Int("lc", 10, "loop count")
-	timeout = flag.Int("t", common.DurationToMsec(time.Second), "block timeout")
+	timeout = flag.Int("t", common.DurationToMillisecond(time.Second), "block timeout")
 	interTimeout = flag.Int("it", 0, "intermediate transfer test loop")
 	beforeTimeout = flag.Int("bt", 0, "connect, before transfer test loop")
 	afterTimeout = flag.Int("at", 0, "after transfer test loop, disconnect")
