@@ -22,39 +22,35 @@ var (
 	server              *string
 	filename            *string
 	useTls              *bool
-	useTlsInfo          *bool
+	showTlsInfo         *bool
 	useTlsVerify        *bool
 	blocksizeString     *string
 	readThrottleString  *string
 	writeThrottleString *string
 	loopCount           *int
-	timeout             *int
+	loopTimeout         *int
 	hashAlg             *string
-	random              *bool
+	randomBytes         *bool
 	interTimeout        *int
-	beforeTimeout       *int
-	afterTimeout        *int
 )
 
 func init() {
 	common.Init(false, "1.0.0", "2019", "network performance testing tool", "mpetavy", fmt.Sprintf("https://github.com/mpetavy/%s", common.Title()), common.APACHE, nil, nil, run, 0)
 
-	client = flag.String("c", "", "client socket address to read from")
-	server = flag.String("s", "", "server socket server to listen")
-	filename = flag.String("f", "", "filename to send/ to receive")
+	client = flag.String("c", "", "client socket address or TTY port")
+	server = flag.String("s", "", "server socket address")
+	filename = flag.String("f", "", "filename to write (client)/read (server)")
 	useTls = flag.Bool("tls", false, "use TLS")
-	useTlsInfo = flag.Bool("tls-info", false, "show TLS info")
+	showTlsInfo = flag.Bool("tls-info", false, "show TLS info")
 	useTlsVerify = flag.Bool("tls-verify", false, "TLS server verification/client verification")
 	hashAlg = flag.String("h", "", "hash algorithm")
-	random = flag.Bool("r", false, "random bytes")
+	randomBytes = flag.Bool("r", false, "write random bytes")
 	blocksizeString = flag.String("bs", "32K", "block size in bytes")
-	readThrottleString = flag.String("tr", "0", "READ throttle bytes/sec")
-	writeThrottleString = flag.String("tw", "0", "WRITE Throttle bytes/sec")
+	readThrottleString = flag.String("rt", "0", "read throttled bytes/sec")
+	writeThrottleString = flag.String("wt", "0", "write throttled bytes/sec")
 	loopCount = flag.Int("lc", 10, "loop count")
-	timeout = flag.Int("t", common.DurationToMillisecond(time.Second), "block timeout")
+	loopTimeout = flag.Int("lt", common.DurationToMillisecond(time.Second), "loop timeout")
 	interTimeout = flag.Int("it", 0, "intermediate transfer test loop")
-	beforeTimeout = flag.Int("bt", 0, "connect, before transfer test loop")
-	afterTimeout = flag.Int("at", 0, "after transfer test loop, disconnect")
 }
 
 func startSession() hash.Hash {
@@ -77,12 +73,6 @@ func startSession() hash.Hash {
 
 func endSession(socket net.Conn, hasher hash.Hash) {
 	if socket != nil {
-		if *afterTimeout > 0 {
-			common.Info("after sleep timeout: %v", common.MillisecondToDuration(*afterTimeout))
-
-			time.Sleep(common.MillisecondToDuration(*afterTimeout))
-		}
-
 		common.Info("Disconnect: %s", socket.RemoteAddr().String())
 		if hasher != nil {
 			common.Info("%s: %x", strings.ToUpper(*hashAlg), hasher.Sum(nil))
@@ -204,7 +194,7 @@ func run() error {
 
 				common.Info("Sending file: %s", *filename)
 			} else {
-				common.Info("Timeout: %v", common.MillisecondToDuration(*timeout))
+				common.Info("Timeout: %v", common.MillisecondToDuration(*loopTimeout))
 
 				if *useTls && *loopCount > 1 {
 					*loopCount = 1
@@ -213,7 +203,7 @@ func run() error {
 					common.Info("Loop count: %d", *loopCount)
 				}
 
-				if *random {
+				if *randomBytes {
 					common.Info("Sending: Random Bytes")
 				} else {
 					common.Info("Sending: Zero Bytes")
@@ -250,7 +240,7 @@ func run() error {
 
 				tlsSocket, ok = socket.(*tls.Conn)
 				if ok {
-					if *useTlsInfo {
+					if *showTlsInfo {
 						ba, err := json.MarshalIndent(tlsSocket.ConnectionState(), "", "    ")
 						if common.Error(err) {
 							return err
@@ -332,12 +322,6 @@ func run() error {
 				common.Info("Average Bytes received: %s", common.FormatMemory(int(float64(n)/float64(d.Milliseconds()))))
 			}(socket)
 		} else {
-			if *beforeTimeout > 0 {
-				common.Info("before sleep timeout: %v", common.MillisecondToDuration(*beforeTimeout))
-
-				time.Sleep(common.MillisecondToDuration(*beforeTimeout))
-			}
-
 			var hasher hash.Hash
 
 			switch *hashAlg {
@@ -387,14 +371,14 @@ func run() error {
 				if needed.Seconds() >= 1 {
 					bytesPerSecond := int(float64(n) / needed.Seconds())
 
-					common.Info("Average Bytes sent: %s/%v", common.FormatMemory(bytesPerSecond), common.MillisecondToDuration(*timeout))
+					common.Info("Average Bytes sent: %s/%v", common.FormatMemory(bytesPerSecond), common.MillisecondToDuration(*loopTimeout))
 				} else {
 					common.Info("Bytes sent: %s/%v", common.FormatMemory(int(n)), needed)
 				}
 			} else {
 				var reader io.Reader
 
-				if *random {
+				if *randomBytes {
 					reader = common.NewRandomReader()
 				} else {
 					reader = common.NewZeroReader()
@@ -403,7 +387,7 @@ func run() error {
 				reader = common.NewThrottledReader(reader, int(readThrottle))
 
 				for i := 0; i < *loopCount; i++ {
-					deadline := time.Now().Add(common.MillisecondToDuration(*timeout))
+					deadline := time.Now().Add(common.MillisecondToDuration(*loopTimeout))
 					err = socket.SetDeadline(deadline)
 					if err != nil {
 						return err
@@ -418,7 +402,7 @@ func run() error {
 					}
 
 					if *loopCount > 1 {
-						common.Info("Loop #%d Bytes sent: %s/%v", i, common.FormatMemory(int(n)), common.MillisecondToDuration(*timeout))
+						common.Info("Loop #%d Bytes sent: %s/%v", i, common.FormatMemory(int(n)), common.MillisecondToDuration(*loopTimeout))
 
 						if *interTimeout > 0 {
 							common.Info("intermediate sleep timeout: %v", common.MillisecondToDuration(*interTimeout))
@@ -426,12 +410,12 @@ func run() error {
 							time.Sleep(common.MillisecondToDuration(*interTimeout))
 						}
 					} else {
-						common.Info("Bytes sent: %s/%v", common.FormatMemory(int(n)), common.MillisecondToDuration(*timeout))
+						common.Info("Bytes sent: %s/%v", common.FormatMemory(int(n)), common.MillisecondToDuration(*loopTimeout))
 					}
 					sum += float64(n)
 				}
 
-				common.Info("Average Bytes sent: %s/%v", common.FormatMemory(int(sum/float64(*loopCount))), common.MillisecondToDuration(*timeout))
+				common.Info("Average Bytes sent: %s/%v", common.FormatMemory(int(sum/float64(*loopCount))), common.MillisecondToDuration(*loopTimeout))
 			}
 
 			endSession(socket, hasher)
