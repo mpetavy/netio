@@ -6,6 +6,7 @@ require (
 	cloud.google.com/go v0.56.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.0.5 // indirect
 	github.com/gookit/color v1.2.4 // indirect
+	github.com/jacobsa/go-serial v0.0.0-20180131005756-15cf729a72d4
 	github.com/labstack/echo/v4 v4.1.16 // indirect
 	github.com/mpetavy/common v1.1.55
 	golang.org/x/crypto v0.0.0-20200420201142-3c4aac89819a // indirect
