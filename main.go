@@ -177,6 +177,10 @@ func run() error {
 		return err
 	}
 
+	if isSerialPortOptions(*client) {
+		blockSize = int64(common.Min(int(blockSize), 115200/8))
+	}
+
 	readThrottle, err := common.ParseMemory(*readThrottleString)
 	if common.Error(err) {
 		return err
@@ -221,7 +225,7 @@ func run() error {
 	}
 
 	for {
-		common.Info("Block size: %s = %d Bytes", *blocksizeString, blockSize)
+		common.Info("Block size: %s = %d Bytes", common.FormatMemory(int(blockSize)), blockSize)
 		common.Info("READ throttle bytes/sec: %s = %d Bytes", *readThrottleString, readThrottle)
 		common.Info("WRITE throttle bytes/sec: %s = %d Bytes", *writeThrottleString, writeThrottle)
 
@@ -529,6 +533,7 @@ func run() error {
 					if *useTls || isSerialPortOptions(*client) {
 						n = 0
 
+						start := time.Now()
 						for time.Now().Before(deadline) {
 							blockN, blockErr := io.CopyN(writer, reader, blockSize)
 
@@ -538,6 +543,8 @@ func run() error {
 
 							n += blockN
 						}
+						elapsed := time.Since(start)
+						n = int64(float64(n) / float64(elapsed.Seconds()) * float64(time.Second.Seconds()))
 
 						if common.Error(err) {
 							return err
