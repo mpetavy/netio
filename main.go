@@ -317,7 +317,7 @@ func run() error {
 			} else {
 				common.Info("Timeout: %v", common.MillisecondToDuration(*loopTimeout))
 
-				if (*useTls || isSerialPortOptions(*client)) && *loopCount > 1 {
+				if *useTls && *loopCount > 1 {
 					*loopCount = 1
 					common.Info("Loop count forced to be reset to 1")
 				} else {
@@ -526,18 +526,34 @@ func run() error {
 				for i := 0; i < *loopCount; i++ {
 					deadline := time.Now().Add(common.MillisecondToDuration(*loopTimeout))
 
-					if asSocket(socket) != nil {
+					if *useTls || isSerialPortOptions(*client) {
+						n = 0
+
+						for time.Now().Before(deadline) {
+							blockN, blockErr := io.CopyN(writer, reader, blockSize)
+
+							if blockErr != nil {
+								err = blockErr
+							}
+
+							n += blockN
+						}
+
+						if common.Error(err) {
+							return err
+						}
+					} else {
 						err = asSocket(socket).SetDeadline(deadline)
 						if err != nil {
 							return err
 						}
-					}
 
-					n, err = io.CopyBuffer(writer, reader, ba)
+						n, err = io.CopyBuffer(writer, reader, ba)
 
-					if err != nil {
-						if neterr, ok := err.(net.Error); !ok || !neterr.Timeout() {
-							return err
+						if err != nil {
+							if neterr, ok := err.(net.Error); !ok || !neterr.Timeout() {
+								return err
+							}
 						}
 					}
 
