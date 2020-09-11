@@ -195,8 +195,12 @@ func run() error {
 	var connection io.ReadWriteCloser
 
 	common.Info("Block size: %s = %d Bytes", common.FormatMemory(int(blockSize)), blockSize)
-	common.Info("READ throttle bytes/sec: %s = %d Bytes", *readThrottleString, readThrottle)
-	common.Info("WRITE throttle bytes/sec: %s = %d Bytes", *writeThrottleString, writeThrottle)
+	if readThrottle > 0 {
+		common.Info("READ throttle bytes/sec: %s = %d Bytes", *readThrottleString, readThrottle)
+	}
+	if writeThrottle > 0 {
+		common.Info("WRITE throttle bytes/sec: %s = %d Bytes", *writeThrottleString, writeThrottle)
+	}
 
 	if *server != "" {
 		var tcpListener *net.TCPListener
