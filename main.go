@@ -336,13 +336,7 @@ func run() error {
 		common.Info("Sending file: %s", *filename)
 	} else {
 		common.Info("Timeout: %v", common.MillisecondToDuration(*loopTimeout))
-
-		if *useTls && *loopCount > 1 {
-			*loopCount = 1
-			common.Info("Loop count forced to be reset to 1")
-		} else {
-			common.Info("Loop count: %d", *loopCount)
-		}
+		common.Info("Loop count: %d", *loopCount)
 
 		if *randomBytes {
 			common.Info("Sending: Random Bytes")
