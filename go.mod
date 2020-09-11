@@ -8,7 +8,7 @@ require (
 	github.com/gookit/color v1.2.4 // indirect
 	github.com/jacobsa/go-serial v0.0.0-20180131005756-15cf729a72d4
 	github.com/labstack/echo/v4 v4.1.16 // indirect
-	github.com/mpetavy/common v1.1.55
+	github.com/mpetavy/common v1.1.57
 	golang.org/x/crypto v0.0.0-20200420201142-3c4aac89819a // indirect
 	google.golang.org/api v0.22.0 // indirect
 	google.golang.org/genproto v0.0.0-20200420144010-e5e8543f8aeb // indirect
@@ -16,4 +16,4 @@ require (
 	software.sslmate.com/src/go-pkcs12 v0.0.0-20200408181440-2981468c0ff3 // indirect
 )
 
-// replace github.com/mpetavy/common => ../common
+replace github.com/mpetavy/common => ../common
