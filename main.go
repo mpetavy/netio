@@ -218,31 +218,31 @@ func run() error {
 			if common.Error(err) {
 				return err
 			}
-		}
-
-		if *useTls {
-			tlsPackage, err := common.GetTlsPackage()
-			if common.Error(err) {
-				return err
-			}
-
-			if *useTlsVerify {
-				tlsPackage.Config.ClientAuth = tls.RequireAndVerifyClientCert
-			}
-
-			tlsListener, err = tls.Listen("tcp", *server, &tlsPackage.Config)
-			if common.Error(err) {
-				return err
-			}
 		} else {
-			tcpAddr, err := net.ResolveTCPAddr("tcp", *server)
-			if common.Error(err) {
-				return err
-			}
+			if *useTls {
+				tlsPackage, err := common.GetTlsPackage()
+				if common.Error(err) {
+					return err
+				}
 
-			tcpListener, err = net.ListenTCP("tcp", tcpAddr)
-			if common.Error(err) {
-				return err
+				if *useTlsVerify {
+					tlsPackage.Config.ClientAuth = tls.RequireAndVerifyClientCert
+				}
+
+				tlsListener, err = tls.Listen("tcp", *server, &tlsPackage.Config)
+				if common.Error(err) {
+					return err
+				}
+			} else {
+				tcpAddr, err := net.ResolveTCPAddr("tcp", *server)
+				if common.Error(err) {
+					return err
+				}
+
+				tcpListener, err = net.ListenTCP("tcp", tcpAddr)
+				if common.Error(err) {
+					return err
+				}
 			}
 		}
 
