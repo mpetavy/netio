@@ -416,7 +416,7 @@ func run() error {
 
 		if *server != "" {
 			go func(socket io.ReadWriteCloser) {
-				hasher := startSession()
+				hashDigest := startSession()
 
 				var f io.Writer
 
@@ -447,34 +447,22 @@ func run() error {
 
 				var n int64
 
-				if hasher != nil {
-					n, _ = io.CopyBuffer(io.MultiWriter(f, hasher), reader, ba)
+				if hashDigest != nil {
+					n, _ = io.CopyBuffer(io.MultiWriter(f, hashDigest), reader, ba)
 				} else {
 					n, _ = io.CopyBuffer(io.MultiWriter(f, ioutil.Discard), reader, ba)
 				}
 
 				end := time.Now()
 
-				endSession(socket, hasher)
+				endSession(socket, hashDigest)
 
 				d := end.Sub(start)
 
 				common.Info("Average Bytes received: %s", common.FormatMemory(int(float64(n)/float64(d.Milliseconds()))))
 			}(socket)
 		} else {
-			var hasher hash.Hash
-
-			switch *hashAlg {
-			case "":
-			case "md5":
-				hasher = md5.New()
-			case "sha224":
-				hasher = sha256.New224()
-			case "sha256":
-				hasher = sha256.New()
-			default:
-				common.Error(fmt.Errorf("unknown hash algorithm: %s", *hashAlg))
-			}
+			hashDigest := startSession()
 
 			var n int64
 			var err error
@@ -482,8 +470,8 @@ func run() error {
 
 			var writer io.Writer
 
-			if hasher != nil {
-				writer = io.MultiWriter(socket, hasher)
+			if hashDigest != nil {
+				writer = io.MultiWriter(socket, hashDigest)
 			} else {
 				writer = socket
 			}
@@ -580,7 +568,7 @@ func run() error {
 				common.Info("Average Bytes sent: %s/%v", common.FormatMemory(int(sum/float64(*loopCount))), common.MillisecondToDuration(*loopTimeout))
 			}
 
-			endSession(socket, hasher)
+			endSession(socket, hashDigest)
 		}
 
 		if *server == "" {
