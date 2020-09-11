@@ -7,8 +7,6 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
-	"github.com/jacobsa/go-serial/serial"
-	"github.com/mpetavy/common"
 	"hash"
 	"io"
 	"io/ioutil"
@@ -17,6 +15,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/jacobsa/go-serial/serial"
+	"github.com/mpetavy/common"
 )
 
 var (
@@ -256,8 +257,6 @@ func run() error {
 
 					if n > 0 {
 						a += n
-
-						fmt.Printf("%s", string(buf[:n]))
 					}
 				}
 			} else {
