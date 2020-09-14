@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"go.bug.st/serial"
 	"hash"
 	"io"
 	"io/ioutil"
@@ -16,7 +17,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jacobsa/go-serial/serial"
 	"github.com/mpetavy/common"
 )
 
@@ -32,6 +32,7 @@ var (
 	writeThrottleString *string
 	loopCount           *int
 	loopTimeout         *int
+	serialTimeout       *int
 	hashAlg             *string
 	randomBytes         *bool
 	loopSleep           *int
@@ -54,6 +55,7 @@ func init() {
 	loopCount = flag.Int("lc", 10, "loop count")
 	loopTimeout = flag.Int("lt", common.DurationToMillisecond(time.Second), "loop timeout")
 	loopSleep = flag.Int("ls", 0, "loop sleep timeout between loop steps")
+	serialTimeout = flag.Int("st", common.DurationToMillisecond(time.Second), "serial read timeout for disconnect")
 }
 
 func startSession() hash.Hash {
@@ -104,14 +106,15 @@ func asSocket(rwc io.ReadWriteCloser) net.Conn {
 	return socket
 }
 
-func evaluateSerialPortOptions(txt string) (*serial.OpenOptions, error) {
+func evaluateSerialPortOptions(txt string) (string, *serial.Mode, error) {
 	ss := strings.Split(txt, ",")
 
 	baudrate := 9600
 	databits := 8
-	stopbits := 1
-	paritymode := serial.PARITY_NONE
+	stopbits := serial.OneStopBit
+	paritymode := serial.NoParity
 	pm := "N"
+	sb := "1"
 
 	var portname string
 	var err error
@@ -120,13 +123,13 @@ func evaluateSerialPortOptions(txt string) (*serial.OpenOptions, error) {
 	if len(ss) > 1 {
 		baudrate, err = strconv.Atoi(ss[1])
 		if err != nil {
-			return nil, fmt.Errorf("invalid baudrate: %s", ss[1])
+			return "", nil, fmt.Errorf("invalid baudrate: %s", ss[1])
 		}
 	}
 	if len(ss) > 2 {
 		databits, err = strconv.Atoi(ss[2])
 		if err != nil {
-			return nil, fmt.Errorf("invalid databits: %s", ss[2])
+			return "", nil, fmt.Errorf("invalid databits: %s", ss[2])
 		}
 	}
 	if len(ss) > 3 {
@@ -134,41 +137,38 @@ func evaluateSerialPortOptions(txt string) (*serial.OpenOptions, error) {
 
 		switch pm {
 		case "N":
-			paritymode = serial.PARITY_NONE
+			paritymode = serial.NoParity
 		case "O":
-			paritymode = serial.PARITY_ODD
+			paritymode = serial.OddParity
 		case "E":
-			paritymode = serial.PARITY_EVEN
+			paritymode = serial.EvenParity
 		default:
-			return nil, fmt.Errorf("invalid partitymode: %s", pm)
+			return "", nil, fmt.Errorf("invalid partitymode: %s", pm)
 		}
 	}
 
 	if len(ss) > 4 {
-		stopbits, err = strconv.Atoi(ss[4])
-		if err != nil {
-			return nil, fmt.Errorf("invalid stopbits: %s", ss[3])
+		sb = strings.ToUpper(ss[4][:1])
+
+		switch sb {
+		case "1":
+			stopbits = serial.OneStopBit
+		case "1.5":
+			stopbits = serial.OnePointFiveStopBits
+		case "2":
+			stopbits = serial.TwoStopBits
+		default:
+			return "", nil, fmt.Errorf("invalid stopbits: %s", sb)
 		}
 	}
 
-	common.Info("Use serial port: %s Baudrate: %d %d %s %d", portname, baudrate, databits, pm, stopbits)
+	common.Info("Use serial port: %s Baudrate: %d %d %s %s", portname, baudrate, databits, pm, sb)
 
-	return &serial.OpenOptions{
-		PortName:          portname,
-		BaudRate:          uint(baudrate),
-		DataBits:          uint(databits),
-		StopBits:          uint(stopbits),
-		ParityMode:        paritymode,
-		RTSCTSFlowControl: false,
-
-		InterCharacterTimeout:   0,
-		MinimumReadSize:         1,
-		Rs485Enable:             false,
-		Rs485RtsHighDuringSend:  false,
-		Rs485RtsHighAfterSend:   false,
-		Rs485RxDuringTx:         false,
-		Rs485DelayRtsBeforeSend: 0,
-		Rs485DelayRtsAfterSend:  0,
+	return portname, &serial.Mode{
+		BaudRate: baudrate,
+		DataBits: databits,
+		Parity:   paritymode,
+		StopBits: stopbits,
 	}, nil
 }
 
@@ -206,19 +206,7 @@ func run() error {
 		var tcpListener *net.TCPListener
 		var tlsListener net.Listener
 
-		if isSerialPortOptions(*server) {
-			var spo *serial.OpenOptions
-
-			spo, err = evaluateSerialPortOptions(*server)
-			if common.Error(err) {
-				return err
-			}
-
-			connection, err = serial.Open(*spo)
-			if common.Error(err) {
-				return err
-			}
-		} else {
+		if !isSerialPortOptions(*server) {
 			if *useTls {
 				tlsPackage, err := common.GetTlsPackage()
 				if common.Error(err) {
@@ -247,7 +235,17 @@ func run() error {
 		}
 
 		for {
-			if !isSerialPortOptions(*server) {
+			if isSerialPortOptions(*server) {
+				tty, mode, err := evaluateSerialPortOptions(*server)
+				if common.Error(err) {
+					return err
+				}
+
+				connection, err = serial.Open(tty, mode)
+				if common.Error(err) {
+					return err
+				}
+			} else {
 				ips, err := common.GetHostAddrs(true, nil)
 				if common.Error(err) {
 					return err
@@ -286,7 +284,7 @@ func run() error {
 				if asSocket(connection) != nil {
 					common.Info("Connected: %s", asSocket(connection).RemoteAddr().String())
 				} else {
-					common.Info("Connected")
+					common.Info("Connected: %s", *server)
 				}
 			}
 
@@ -310,15 +308,73 @@ func run() error {
 
 			var n int64
 
-			if hashDigest != nil {
-				n, _ = io.CopyBuffer(io.MultiWriter(fileWriter, hashDigest), reader, ba)
+			if !isSerialPortOptions(*server) {
+				if hashDigest != nil {
+					n, _ = io.CopyBuffer(io.MultiWriter(fileWriter, hashDigest), reader, ba)
+				} else {
+					n, _ = io.CopyBuffer(io.MultiWriter(fileWriter, ioutil.Discard), reader, ba)
+				}
 			} else {
-				n, _ = io.CopyBuffer(io.MultiWriter(fileWriter, ioutil.Discard), reader, ba)
+				var writer io.Writer
+
+				st := common.MillisecondToDuration(*serialTimeout)
+
+				if hashDigest != nil {
+					writer = io.MultiWriter(fileWriter, hashDigest)
+				} else {
+					writer = io.MultiWriter(fileWriter, ioutil.Discard)
+				}
+
+				timer := time.NewTimer(st)
+				timer.Stop()
+
+				go func() {
+					for common.AppLifecycle().IsSet() {
+						nn, err := reader.Read(ba)
+						timer.Stop()
+
+						if n == 0 {
+							common.Info("Connected")
+						}
+
+						portError, ok := err.(*serial.PortError)
+						if ok && portError.Code() == serial.PortClosed {
+							return
+						}
+
+						if common.Error(err) {
+							return
+						}
+
+						_, err = writer.Write(ba[:nn])
+						if common.Error(err) {
+							return
+						}
+
+						n = n + int64(nn)
+
+						timer.Reset(st)
+					}
+				}()
+
+				for {
+					<-timer.C
+					common.Error(connection.Close())
+					break
+				}
 			}
 
 			endSession(connection, hashDigest)
 
-			common.Info("Average Bytes received: %s", common.FormatMemory(int(float64(n)/float64(time.Since(start).Milliseconds()))))
+			needed := time.Since(start)
+
+			if needed.Seconds() >= 1 {
+				bytesPerSecond := int(float64(n) / float64(needed.Seconds()))
+
+				common.Info("Average Bytes sent: %s/%v", common.FormatMemory(bytesPerSecond), common.MillisecondToDuration(*loopTimeout))
+			} else {
+				common.Info("Bytes sent: %s/%v", common.FormatMemory(int(n)), needed)
+			}
 
 			if *filename != "" {
 				common.Info("Close file: %s", *filename)
@@ -350,12 +406,12 @@ func run() error {
 	}
 
 	if isSerialPortOptions(*client) {
-		spo, err := evaluateSerialPortOptions(*client)
+		tty, mode, err := evaluateSerialPortOptions(*client)
 		if common.Error(err) {
 			return err
 		}
 
-		connection, err = serial.Open(*spo)
+		connection, err = serial.Open(tty, mode)
 		if common.Error(err) {
 			return err
 		}
