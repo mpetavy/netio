@@ -328,19 +328,26 @@ func run() error {
 				timer := time.NewTimer(st)
 				timer.Stop()
 
+				isTimedout := false
+
 				go func() {
 					for common.AppLifecycle().IsSet() {
 						nn, err := reader.Read(ba)
+
+						if isTimedout {
+							return
+						}
+
 						timer.Stop()
 
 						if n == 0 {
 							common.Info("Connected")
 						}
 
-						portError, ok := err.(*serial.PortError)
-						if ok && portError.Code() == serial.PortClosed {
-							return
-						}
+						//portError, ok := err.(*serial.PortError)
+						//if ok && portError.Code() == serial.PortClosed {
+						//	return
+						//}
 
 						if common.Error(err) {
 							return
@@ -359,6 +366,7 @@ func run() error {
 
 				for {
 					<-timer.C
+					isTimedout = true
 					common.Error(connection.Close())
 					break
 				}
