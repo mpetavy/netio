@@ -21,6 +21,14 @@ import (
 )
 
 var (
+	LDFLAG_DEVELOPER = "mpetavy"                    // will be replaced with ldflag
+	LDFLAG_HOMEPAGE  = "https://github.com/mpetavy/netio" // will be replaced with ldflag
+	LDFLAG_LICENSE   = common.APACHE                // will be replaced with ldflag
+	LDFLAG_VERSION   = "1.0.0"                      // will be replaced with ldflag
+	LDFLAG_EXPIRE    = ""                           // will be replaced with ldflag
+	LDFLAG_GIT       = ""                           // will be replaced with ldflag
+	LDFLAG_COUNTER   = "9999"                       // will be replaced with ldflag
+
 	client              *string
 	server              *string
 	filename            *string
@@ -39,14 +47,14 @@ var (
 )
 
 func init() {
-	common.Init(false, "1.0.0", "2019", "network/serial performance testing tool", "mpetavy", fmt.Sprintf("https://github.com/mpetavy/%s", common.Title()), common.APACHE, nil, nil, run, 0)
+	common.Init(false, LDFLAG_VERSION, "2019", "network/serial performance testing tool", LDFLAG_DEVELOPER, LDFLAG_HOMEPAGE, LDFLAG_LICENSE, nil,nil, run, 0)
 
 	client = flag.String("c", "", "client socket address or TTY port")
 	server = flag.String("s", "", "server socket address")
 	filename = flag.String("f", "", "filename to write (client)/read (server)")
 	useTls = flag.Bool("tls", false, "use TLS")
-	showTlsInfo = flag.Bool("tls-info", false, "show TLS info")
-	useTlsVerify = flag.Bool("tls-verify", false, "TLS server verification/client verification")
+	showTlsInfo = flag.Bool("tls.info", false, "show TLS info")
+	useTlsVerify = flag.Bool("tls.verify", false, "TLS server verification/client verification")
 	hashAlg = flag.String("h", "", "hash algorithm")
 	randomBytes = flag.Bool("r", false, "write random bytes")
 	blocksizeString = flag.String("bs", "32K", "block size in bytes")
@@ -600,6 +608,11 @@ func run() error {
 
 func main() {
 	defer common.Done()
+
+	flag.VisitAll(func(fl *flag.Flag) {
+		fmt.Printf("%s | %s | %s\n", fl.Name, fl.DefValue, fl.Usage)
+	})
+	os.Exit(0)
 
 	common.Run(nil)
 }
