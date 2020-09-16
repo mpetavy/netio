@@ -179,32 +179,32 @@ Parameter | Default value | Description
 ? | false | show usage
 backup.count | 3 | amount of file backups
 bs | 32K | block size in bytes
-c |  | client socket address or TTY port
-cfg.file | /home/ransom/go/src/netio/netio.json | Configuration file
+c |  | client address/serial port
+cfg.file | D:\go\src\netio\netio.json | Configuration file
 cfg.reset | false | Reset configuration file
 cfg.timeout | 0 | rescan timeout for configuration change
-f |  | filename to write (client)/read (server)
+f |  | filename to write to (server) or read from (client)
 h |  | hash algorithm (md5, sha224, sha256)
 language | en | language for messages
 lc | 10 | loop count
-log.file |  | filename to log logFile (use "." for /home/ransom/go/src/netio/netio.log)
+log.file |  | filename to log logFile (use "." for D:\go\src\netio\netio.log)
 log.filesize | 5242880 | max log file size
 log.io | false | trace logging
 log.json | false | JSON output
 log.verbose | false | verbose logging
-ls | 0 | loop sleep timeout between loop steps
+ls | 0 | loop sleep between loop steps
 lt | 1000 | loop timeout
 nb | false | no copyright banner
 r | false | write random bytes
 rt | 0 | read throttled bytes/sec
-s |  | server socket address
+s |  | server address/serial port
 st | 1000 | serial read timeout for disconnect
 tls | false | use TLS
 tls.info | false | show TLS info
 tls.insecure | false | Use insecure TLS versions and ciphersuites
 tls.p12 |  | TLS PKCS12 certificates & privkey container stream (P12,Base64 format)
 tls.p12file |  | TLS PKCS12 certificates & privkey container file (P12 format)
-tls.verify | false | TLS server verification/client verification
+tls.verify | false | TLS verification verification
 wt | 0 | write throttled bytes/sec
 
 ## Samples
