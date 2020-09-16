@@ -42,6 +42,7 @@ var (
 	loopTimeout         *int
 	serialTimeout       *int
 	hashAlg             *string
+	hashExpected        *string
 	randomBytes         *bool
 	loopSleep           *int
 )
@@ -56,6 +57,7 @@ func init() {
 	showTlsInfo = flag.Bool("tls.info", false, "show TLS info")
 	useTlsVerify = flag.Bool("tls.verify", false, "TLS verification verification")
 	hashAlg = flag.String("h", "", "hash algorithm (md5, sha224, sha256)")
+	hashExpected = flag.String("e", "", "expected hash")
 	randomBytes = flag.Bool("r", false, "write random bytes")
 	blocksizeString = flag.String("bs", "32K", "block size in bytes")
 	readThrottleString = flag.String("rt", "0", "read throttled bytes/sec")
@@ -86,6 +88,8 @@ func startSession() hash.Hash {
 
 func endSession(socket io.ReadWriteCloser, hasher hash.Hash) {
 	if socket != nil {
+		hashCalculated := fmt.Sprintf("%x", hasher.Sum(nil))
+
 		if asSocket(socket) != nil {
 			common.Info("Disconnect: %s", asSocket(socket).RemoteAddr().String())
 		} else {
@@ -93,7 +97,15 @@ func endSession(socket io.ReadWriteCloser, hasher hash.Hash) {
 		}
 
 		if hasher != nil {
-			common.Info("%s: %x", strings.ToUpper(*hashAlg), hasher.Sum(nil))
+			common.Info("%s: %s", strings.ToUpper(*hashAlg), hashCalculated)
+		}
+
+		if *hashExpected != "" {
+			if *hashExpected != hashCalculated {
+				common.Warn("%s hash is invalid, expected: %s", strings.ToUpper(*hashAlg), *hashExpected)
+			} else {
+				common.Info("%s hash is valid", strings.ToUpper(*hashAlg))
+			}
 		}
 
 		common.DebugError(socket.Close())
@@ -381,6 +393,7 @@ func run() error {
 					<-timer.C
 					isTimedout = true
 					common.Error(connection.Close())
+					time.Sleep(time.Millisecond * 250)
 					break
 				}
 			}
