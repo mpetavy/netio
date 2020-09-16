@@ -1,0 +1,16 @@
+FROM alpine:latest
+RUN mkdir /app
+WORKDIR /app
+COPY ./netio .
+EXPOSE 8443 15000-15050
+EXPOSE 15000/udp
+RUN apk --no-cache update \
+	&& apk --no-cache upgrade \
+	&& apk --no-cache add ca-certificates \
+	&& apk --no-cache add dbus \
+	&& apk --no-cache add tzdata \
+	&& cp /usr/share/zoneinfo/Europe/Berlin /etc/localtime \
+	&& echo "Europe/Berlin" >  /etc/timezone \
+	&& dbus-uuidgen > /var/lib/dbus/machine-id
+
+ENTRYPOINT /app/netio
