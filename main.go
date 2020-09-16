@@ -55,7 +55,7 @@ func init() {
 	useTls = flag.Bool("tls", false, "use TLS")
 	showTlsInfo = flag.Bool("tls.info", false, "show TLS info")
 	useTlsVerify = flag.Bool("tls.verify", false, "TLS verification verification")
-	hashAlg = flag.String("h", "", "hash algorithm")
+	hashAlg = flag.String("h", "", "hash algorithm (md5, sha224, sha256)")
 	randomBytes = flag.Bool("r", false, "write random bytes")
 	blocksizeString = flag.String("bs", "32K", "block size in bytes")
 	readThrottleString = flag.String("rt", "0", "read throttled bytes/sec")
