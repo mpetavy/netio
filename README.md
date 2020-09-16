@@ -184,7 +184,7 @@ cfg.file | /home/ransom/go/src/netio/netio.json | Configuration file
 cfg.reset | false | Reset configuration file
 cfg.timeout | 0 | rescan timeout for configuration change
 f |  | filename to write (client)/read (server)
-h |  | hash algorithm
+h |  | hash algorithm (md5, sha224, sha256)
 language | en | language for messages
 lc | 10 | loop count
 log.file |  | filename to log logFile (use "." for /home/ransom/go/src/netio/netio.log)
