@@ -49,8 +49,8 @@ var (
 func init() {
 	common.Init(false, LDFLAG_VERSION, "2019", "network/serial performance testing tool", LDFLAG_DEVELOPER, LDFLAG_HOMEPAGE, LDFLAG_LICENSE, nil, nil, run, 0)
 
-	client = flag.String("c", "", "client socket address/serial port")
-	server = flag.String("s", "", "server socket address/serial port")
+	client = flag.String("c", "", "client address/serial port")
+	server = flag.String("s", "", "server address/serial port")
 	filename = flag.String("f", "", "filename to write to (server) or read from (client)")
 	useTls = flag.Bool("tls", false, "use TLS")
 	showTlsInfo = flag.Bool("tls.info", false, "show TLS info")
@@ -301,6 +301,11 @@ func run() error {
 			ba := make([]byte, blockSize)
 
 			if *filename != "" {
+				err := common.FileBackup(*filename)
+				if common.Error(err) {
+					return err
+				}
+
 				common.Info("Create file: %s", *filename)
 
 				file, err := os.Create(*filename)
@@ -614,5 +619,5 @@ func main() {
 	//})
 	//os.Exit(0)
 
-	common.Run(nil)
+	common.Run([]string{"c|s"})
 }
