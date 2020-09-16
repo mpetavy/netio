@@ -1,6 +1,6 @@
 # NETIO documentation v1.0.0
 
-## Doc Version
+## Document Version
 Version | Date | Author | Description
 ------------ | ------------ | ------------- | -------------
 1.0.0 | 15.09.2020 | mpetavy | Initial release
@@ -216,4 +216,10 @@ Here some sample usages.
     
     # start client on COM3 with 9600 Baud, 8 Databist, no parity, 1 Stopbit and transfer the file "testfile.txt"
     netio -c COM3,9600,8,N,1 -f testfile.txt
+    
+    # server listens on COM3 and calculates transfered bytes with MD5 hash algorithm 
+    netio -s COM3 -h md5
+    
+    # client sends on COM4 and calculates transfered bytes with MD5 hash algorithm 
+    netio -c COM4 -h md5
 
