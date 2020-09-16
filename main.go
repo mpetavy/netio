@@ -21,13 +21,13 @@ import (
 )
 
 var (
-	LDFLAG_DEVELOPER = "mpetavy"                    // will be replaced with ldflag
+	LDFLAG_DEVELOPER = "mpetavy"                          // will be replaced with ldflag
 	LDFLAG_HOMEPAGE  = "https://github.com/mpetavy/netio" // will be replaced with ldflag
-	LDFLAG_LICENSE   = common.APACHE                // will be replaced with ldflag
-	LDFLAG_VERSION   = "1.0.0"                      // will be replaced with ldflag
-	LDFLAG_EXPIRE    = ""                           // will be replaced with ldflag
-	LDFLAG_GIT       = ""                           // will be replaced with ldflag
-	LDFLAG_COUNTER   = "9999"                       // will be replaced with ldflag
+	LDFLAG_LICENSE   = common.APACHE                      // will be replaced with ldflag
+	LDFLAG_VERSION   = "1.0.0"                            // will be replaced with ldflag
+	LDFLAG_EXPIRE    = ""                                 // will be replaced with ldflag
+	LDFLAG_GIT       = ""                                 // will be replaced with ldflag
+	LDFLAG_COUNTER   = "9999"                             // will be replaced with ldflag
 
 	client              *string
 	server              *string
@@ -47,14 +47,14 @@ var (
 )
 
 func init() {
-	common.Init(false, LDFLAG_VERSION, "2019", "network/serial performance testing tool", LDFLAG_DEVELOPER, LDFLAG_HOMEPAGE, LDFLAG_LICENSE, nil,nil, run, 0)
+	common.Init(false, LDFLAG_VERSION, "2019", "network/serial performance testing tool", LDFLAG_DEVELOPER, LDFLAG_HOMEPAGE, LDFLAG_LICENSE, nil, nil, run, 0)
 
-	client = flag.String("c", "", "client socket address or TTY port")
-	server = flag.String("s", "", "server socket address")
-	filename = flag.String("f", "", "filename to write (client)/read (server)")
+	client = flag.String("c", "", "client socket address/serial port")
+	server = flag.String("s", "", "server socket address/serial port")
+	filename = flag.String("f", "", "filename to write to (server) or read from (client)")
 	useTls = flag.Bool("tls", false, "use TLS")
 	showTlsInfo = flag.Bool("tls.info", false, "show TLS info")
-	useTlsVerify = flag.Bool("tls.verify", false, "TLS server verification/client verification")
+	useTlsVerify = flag.Bool("tls.verify", false, "TLS verification verification")
 	hashAlg = flag.String("h", "", "hash algorithm")
 	randomBytes = flag.Bool("r", false, "write random bytes")
 	blocksizeString = flag.String("bs", "32K", "block size in bytes")
@@ -62,7 +62,7 @@ func init() {
 	writeThrottleString = flag.String("wt", "0", "write throttled bytes/sec")
 	loopCount = flag.Int("lc", 10, "loop count")
 	loopTimeout = flag.Int("lt", common.DurationToMillisecond(time.Second), "loop timeout")
-	loopSleep = flag.Int("ls", 0, "loop sleep timeout between loop steps")
+	loopSleep = flag.Int("ls", 0, "loop sleep between loop steps")
 	serialTimeout = flag.Int("st", common.DurationToMillisecond(time.Second), "serial read timeout for disconnect")
 }
 
