@@ -14,7 +14,7 @@ set LDFLAG_LICENSE=https://www.apache.org/licenses/LICENSE-2.0.html
 set LDFLAG_VERSION=1.0.0
 set LDFLAG_EXPIRE=
 set LDFLAG_GIT=%msg%
-set LDFLAG_COUNTER=1234
+set LDFLAG_COUNTER=1
 
 if [%teamcity.version%] == [] (
     set DOCKER_IMAGE=golang:%GO_VERSION%
