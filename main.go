@@ -609,10 +609,10 @@ func run() error {
 func main() {
 	defer common.Done()
 
-	flag.VisitAll(func(fl *flag.Flag) {
-		fmt.Printf("%s | %s | %s\n", fl.Name, fl.DefValue, fl.Usage)
-	})
-	os.Exit(0)
+	//flag.VisitAll(func(fl *flag.Flag) {
+	//	fmt.Printf("%s | %s | %s\n", fl.Name, fl.DefValue, fl.Usage)
+	//})
+	//os.Exit(0)
 
 	common.Run(nil)
 }
