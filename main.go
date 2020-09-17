@@ -44,6 +44,7 @@ var (
 	loopCount           *int
 	loopTimeout         *int
 	serialTimeout       *int
+	helloTimeout        *int
 	hashAlg             *string
 	hashExpected        *string
 	randomBytes         *bool
@@ -79,6 +80,8 @@ func init() {
 	loopTimeout = flag.Int("lt", common.DurationToMillisecond(time.Second), "loop timeout")
 	loopSleep = flag.Int("ls", 0, "loop sleep between loop steps")
 	serialTimeout = flag.Int("st", common.DurationToMillisecond(time.Second), "serial read timeout for disconnect")
+	helloTimeout = flag.Int("ht", common.DurationToMillisecond(time.Millisecond*500), "serial read timeout for disconnect")
+
 }
 
 type DeadlineReset struct {
@@ -226,7 +229,7 @@ func waitForHello() error {
 	received := ""
 	ba := make([]byte, len(HELLO))
 
-	common.Info("Waiting serial HELLO...")
+	common.Info("Waiting HELLO...")
 
 	for {
 		n, err := connection.Read(ba)
@@ -264,11 +267,6 @@ func testTarget(device string) error {
 		if common.Error(err) {
 			return err
 		}
-
-		err = waitForHello()
-		if common.Error(err) {
-			return err
-		}
 	}
 
 	fileWriter := ioutil.Discard
@@ -291,7 +289,7 @@ func testTarget(device string) error {
 		fileWriter = file
 	}
 
-	common.Info("Receive bytes...")
+	common.Info("Receiving bytes...")
 
 	reader := common.NewThrottledReader(connection, int(readThrottle))
 	start := time.Now()
@@ -389,10 +387,7 @@ func testSource(device string) error {
 			return err
 		}
 
-		err = sendHello()
-		if common.Error(err) {
-			return err
-		}
+		time.Sleep(common.MillisecondToDuration(*helloTimeout))
 	}
 
 	if *filename != "" {
@@ -628,7 +623,7 @@ func run() error {
 			}
 
 			if *isTestSource {
-				return testSource(*server)
+				common.Error(testSource(*server))
 			} else {
 				common.Error(testTarget(*server))
 			}
