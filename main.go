@@ -80,7 +80,7 @@ func init() {
 	loopTimeout = flag.Int("lt", common.DurationToMillisecond(time.Second), "loop timeout")
 	loopSleep = flag.Int("ls", 0, "loop sleep between loop steps")
 	serialTimeout = flag.Int("st", common.DurationToMillisecond(time.Second), "serial read timeout for disconnect")
-	helloTimeout = flag.Int("ht", common.DurationToMillisecond(time.Millisecond*500), "serial read timeout for disconnect")
+	helloTimeout = flag.Int("ht", common.DurationToMillisecond(time.Second), "serial read timeout for disconnect")
 
 }
 
@@ -391,12 +391,6 @@ func testSource(device string) error {
 	}
 
 	if *filename != "" {
-		b, _ := common.FileExists(*filename)
-
-		if !b {
-			return &common.ErrFileNotFound{FileName: *filename}
-		}
-
 		common.Info("Send file: %s", *filename)
 	} else {
 		common.Info("Timeout: %v", common.MillisecondToDuration(*loopTimeout))
@@ -534,6 +528,14 @@ func run() error {
 	}
 	if writeThrottle > 0 {
 		common.Info("WRITE throttle bytes/sec: %s = %d Bytes", *writeThrottleString, writeThrottle)
+	}
+
+	if *isTestSource || *server != "" {
+		b, _ := common.FileExists(*filename)
+
+		if !b {
+			return &common.ErrFileNotFound{FileName: *filename}
+		}
 	}
 
 	if *server != "" {
