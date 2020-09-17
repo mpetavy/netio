@@ -36,8 +36,8 @@ var (
 	useTls              *bool
 	showTlsInfo         *bool
 	useTlsVerify        *bool
-	isTestSource        *bool
-	isTestTarget        *bool
+	isDataSender        *bool
+	isDataReceiver      *bool
 	blocksizeString     *string
 	readThrottleString  *string
 	writeThrottleString *string
@@ -62,25 +62,25 @@ const (
 func init() {
 	common.Init(false, LDFLAG_VERSION, "2019", "network/serial performance testing tool", LDFLAG_DEVELOPER, LDFLAG_HOMEPAGE, LDFLAG_LICENSE, nil, nil, run, 0)
 
-	client = flag.String("c", "", "client address/serial port")
-	server = flag.String("s", "", "server address/serial port")
-	filename = flag.String("f", "", "filename to write to (server) or read from (client)")
-	useTls = flag.Bool("tls", false, "use TLS")
-	showTlsInfo = flag.Bool("tls.info", false, "show TLS info")
+	client = flag.String("c", "", "Client address/serial port")
+	server = flag.String("s", "", "Server address/serial port")
+	filename = flag.String("f", "", "Filename to write to (server) or read from (client)")
+	useTls = flag.Bool("tls", false, "Use TLS")
+	showTlsInfo = flag.Bool("tls.info", false, "Show TLS info")
 	useTlsVerify = flag.Bool("tls.verify", false, "TLS verification verification")
-	isTestSource = flag.Bool("ts", false, "Test source")
-	isTestTarget = flag.Bool("tt", false, "Test target")
-	hashAlg = flag.String("h", "", "hash algorithm (md5, sha224, sha256)")
-	hashExpected = flag.String("e", "", "expected hash")
-	randomBytes = flag.Bool("r", false, "write random bytes")
-	blocksizeString = flag.String("bs", "32K", "block size in bytes")
-	readThrottleString = flag.String("rt", "0", "read throttled bytes/sec")
-	writeThrottleString = flag.String("wt", "0", "write throttled bytes/sec")
-	loopCount = flag.Int("lc", 1, "loop count")
-	loopTimeout = flag.Int("lt", common.DurationToMillisecond(time.Second), "loop timeout")
-	loopSleep = flag.Int("ls", 0, "loop sleep between loop steps")
-	serialTimeout = flag.Int("st", common.DurationToMillisecond(time.Second), "serial read timeout for disconnect")
-	helloTimeout = flag.Int("ht", common.DurationToMillisecond(time.Second), "serial read timeout for disconnect")
+	isDataSender = flag.Bool("ds", false, "Act as data sender")
+	isDataReceiver = flag.Bool("dr", false, "Act as data receiver")
+	hashAlg = flag.String("h", "", "Hash algorithm (md5, sha224, sha256)")
+	hashExpected = flag.String("e", "", "Expected hash")
+	randomBytes = flag.Bool("r", false, "Send random bytes (or '0' bytes)")
+	blocksizeString = flag.String("bs", "32K", "Block size in bytes")
+	readThrottleString = flag.String("rt", "0", "Read throttled bytes/sec")
+	writeThrottleString = flag.String("wt", "0", "Write throttled bytes/sec")
+	loopCount = flag.Int("lc", 1, "Loop count")
+	loopTimeout = flag.Int("lt", common.DurationToMillisecond(time.Second), "Loop timeout")
+	loopSleep = flag.Int("ls", 0, "Loop sleep between loop steps")
+	serialTimeout = flag.Int("st", common.DurationToMillisecond(time.Second), "Serial read timeout for disconnect")
+	helloTimeout = flag.Int("ht", common.DurationToMillisecond(time.Second), "Sender sleep time after HELLO and before send start")
 
 }
 
@@ -119,15 +119,9 @@ func startSession() hash.Hash {
 	return hasher
 }
 
-func endSession(socket io.ReadWriteCloser, hasher hash.Hash) {
-	if socket != nil {
+func endSession(hasher hash.Hash) {
+	if hasher != nil {
 		hashCalculated := fmt.Sprintf("%x", hasher.Sum(nil))
-
-		if asSocket(socket) != nil {
-			common.Info("Disconnect: %s", asSocket(socket).RemoteAddr().String())
-		} else {
-			common.Info("Disconnect")
-		}
 
 		if hasher != nil {
 			common.Info("%s: %s", strings.ToUpper(*hashAlg), hashCalculated)
@@ -141,7 +135,7 @@ func endSession(socket io.ReadWriteCloser, hasher hash.Hash) {
 			}
 		}
 
-		common.DebugError(socket.Close())
+		common.DebugError(connection.Close())
 	}
 }
 
@@ -261,8 +255,8 @@ func sendHello() error {
 	return nil
 }
 
-func testTarget(device string) error {
-	if *isTestTarget {
+func dataReceiver(device string) error {
+	if *isDataReceiver {
 		err := sendHello()
 		if common.Error(err) {
 			return err
@@ -357,7 +351,13 @@ func testTarget(device string) error {
 		}
 	}
 
-	endSession(connection, hashDigest)
+	if asSocket(connection) != nil {
+		common.Info("Disconnect: %s", asSocket(connection).RemoteAddr().String())
+	} else {
+		common.Info("Disconnect")
+	}
+
+	endSession(hashDigest)
 
 	needed := time.Since(start)
 
@@ -380,8 +380,8 @@ func testTarget(device string) error {
 	return nil
 }
 
-func testSource(device string) error {
-	if *isTestSource {
+func dataSender(device string) error {
+	if *isDataSender {
 		err := waitForHello()
 		if common.Error(err) {
 			return err
@@ -494,7 +494,13 @@ func testSource(device string) error {
 
 	common.Info("Average Bytes sent: %s/%v", common.FormatMemory(int(sum/float64(*loopCount))), common.MillisecondToDuration(*loopTimeout))
 
-	endSession(connection, hashDigest)
+	if asSocket(connection) != nil {
+		common.Info("Disconnect: %s", asSocket(connection).RemoteAddr().String())
+	} else {
+		common.Info("Disconnect")
+	}
+
+	endSession(hashDigest)
 
 	return nil
 }
@@ -530,7 +536,7 @@ func run() error {
 		common.Info("WRITE throttle bytes/sec: %s = %d Bytes", *writeThrottleString, writeThrottle)
 	}
 
-	if *isTestSource || *server != "" {
+	if *filename != "" && (*isDataSender || *server != "") {
 		b, _ := common.FileExists(*filename)
 
 		if !b {
@@ -624,10 +630,10 @@ func run() error {
 				}
 			}
 
-			if *isTestSource {
-				common.Error(testSource(*server))
+			if *isDataSender {
+				common.Error(dataSender(*server))
 			} else {
-				common.Error(testTarget(*server))
+				common.Error(dataReceiver(*server))
 			}
 		}
 	}
@@ -707,10 +713,10 @@ func run() error {
 		common.Info("Connected: %s", *client)
 	}
 
-	if *isTestTarget {
-		common.Error(testTarget(*client))
+	if *isDataReceiver {
+		common.Error(dataReceiver(*client))
 	} else {
-		common.Error(testSource(*client))
+		common.Error(dataSender(*client))
 	}
 
 	return nil
