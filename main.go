@@ -124,14 +124,15 @@ func endSession(hasher hash.Hash) {
 		hashCalculated := fmt.Sprintf("%x", hasher.Sum(nil))
 
 		if hasher != nil {
-			common.Info("%s: %s", strings.ToUpper(*hashAlg), hashCalculated)
-		}
+			common.Info("%s digest: %s", strings.ToUpper(*hashAlg), hashCalculated)
 
-		if *hashExpected != "" {
-			if *hashExpected != hashCalculated {
-				common.Warn("%s hash is invalid, expected: %s", strings.ToUpper(*hashAlg), *hashExpected)
-			} else {
-				common.Info("%s hash is valid", strings.ToUpper(*hashAlg))
+			if *hashExpected != "" {
+				if *hashExpected != hashCalculated {
+					common.Info("%s expect: %s", strings.ToUpper(*hashAlg), *hashExpected)
+					common.Warn("%s hash is wrong!", strings.ToUpper(*hashAlg))
+				} else {
+					common.Info("%s hash is correct!", strings.ToUpper(*hashAlg))
+				}
 			}
 		}
 
@@ -223,7 +224,7 @@ func waitForHello() error {
 	received := ""
 	ba := make([]byte, len(HELLO))
 
-	common.Info("Waiting HELLO...")
+	common.Info("Waiting for HELLO...")
 
 	for {
 		n, err := connection.Read(ba)
@@ -268,14 +269,9 @@ func dataReceiver(device string) error {
 	ba := make([]byte, blockSize)
 
 	if *filename != "" {
-		err := common.FileBackup(*filename)
-		if common.Error(err) {
-			return err
-		}
+		common.Info("Dump to file: %s", *filename)
 
-		common.Info("Create file: %s", *filename)
-
-		file, err := os.Create(*filename)
+		file, err := os.OpenFile(*filename, os.O_CREATE|os.O_APPEND|os.O_RDWR, os.ModePerm)
 		if common.Error(err) {
 			return err
 		}
@@ -513,6 +509,12 @@ func run() error {
 		return err
 	}
 
+	//if isSerialPortOptions(*server) || isSerialPortOptions(*client) {
+	//	blockSize = int64(common.Min(int(blockSize), 115200/8))
+	//}
+
+	common.Info("Block size: %s = %d Bytes", common.FormatMemory(int(blockSize)), blockSize)
+
 	readThrottle, err = common.ParseMemory(*readThrottleString)
 	if common.Error(err) {
 		return err
@@ -523,12 +525,6 @@ func run() error {
 		return err
 	}
 
-	if isSerialPortOptions(*server) || isSerialPortOptions(*client) {
-		blockSize = int64(common.Min(int(blockSize), 115200/8))
-	}
-
-	common.Info("Block size: %s = %d Bytes", common.FormatMemory(int(blockSize)), blockSize)
-
 	if readThrottle > 0 {
 		common.Info("READ throttle bytes/sec: %s = %d Bytes", *readThrottleString, readThrottle)
 	}
@@ -536,11 +532,21 @@ func run() error {
 		common.Info("WRITE throttle bytes/sec: %s = %d Bytes", *writeThrottleString, writeThrottle)
 	}
 
-	if *filename != "" && (*isDataSender || *server != "") {
-		b, _ := common.FileExists(*filename)
+	if *filename != "" {
+		if *isDataSender || (*client != "" && !*isDataReceiver) {
+			b, _ := common.FileExists(*filename)
 
-		if !b {
-			return &common.ErrFileNotFound{FileName: *filename}
+			if !b {
+				return &common.ErrFileNotFound{FileName: *filename}
+			}
+		}
+
+		if *isDataReceiver || (*server != "" && !*isDataSender) {
+			b, _ := common.FileExists(*filename)
+
+			if b {
+				return fmt.Errorf("file already exists: %s", *filename)
+			}
 		}
 	}
 
