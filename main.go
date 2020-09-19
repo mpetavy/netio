@@ -21,6 +21,12 @@ import (
 	"github.com/mpetavy/common"
 )
 
+// -s /dev/ttyUSB0,115200 -ds -f README.md -h md5 -lc 5 -ls 5000
+// -c /dev/ttyUSB1,115200 -dr -h md5 -e fc7fa95c5659ccdf5aad8c883916a854 -lc 5
+
+// -s /dev/ttyUSB0,115200 -h md5 -e fc7fa95c5659ccdf5aad8c883916a854
+// -c /dev/ttyUSB1,115200 -h md5 -f README.md -lc 5 -ls 2000
+
 var (
 	LDFLAG_DEVELOPER = "mpetavy"                          // will be replaced with ldflag
 	LDFLAG_HOMEPAGE  = "https://github.com/mpetavy/netio" // will be replaced with ldflag
@@ -60,7 +66,7 @@ const (
 )
 
 func init() {
-	common.Init(false, LDFLAG_VERSION, "2019", "network/serial performance testing tool", LDFLAG_DEVELOPER, LDFLAG_HOMEPAGE, LDFLAG_LICENSE, nil, nil, run, 0)
+	common.Init(false, LDFLAG_VERSION, "2019", "network/serial performance testing tool", LDFLAG_DEVELOPER, LDFLAG_HOMEPAGE, LDFLAG_LICENSE, nil, nil, run1, 0)
 
 	client = flag.String("c", "", "Client address/serial port")
 	server = flag.String("s", "", "Server address/serial port")
@@ -70,7 +76,7 @@ func init() {
 	useTlsVerify = flag.Bool("tls.verify", false, "TLS verification verification")
 	isDataSender = flag.Bool("ds", false, "Act as data sender")
 	isDataReceiver = flag.Bool("dr", false, "Act as data receiver")
-	hashAlg = flag.String("h", "", "Hash algorithm (md5, sha224, sha256)")
+	hashAlg = flag.String("h", "md5", "Hash algorithm (md5, sha224, sha256)")
 	hashExpected = flag.String("e", "", "Expected hash")
 	randomBytes = flag.Bool("r", false, "Send random bytes (or '0' bytes)")
 	blocksizeString = flag.String("bs", "32K", "Block size in bytes")
@@ -78,7 +84,7 @@ func init() {
 	writeThrottleString = flag.String("wt", "0", "Write throttled bytes/sec")
 	loopCount = flag.Int("lc", 1, "Loop count")
 	loopTimeout = flag.Int("lt", common.DurationToMillisecond(time.Second), "Loop timeout")
-	loopSleep = flag.Int("ls", 0, "Loop sleep between loop steps")
+	loopSleep = flag.Int("ls", common.DurationToMillisecond(time.Second), "Loop sleep between loop steps")
 	serialTimeout = flag.Int("st", common.DurationToMillisecond(time.Second), "Serial read timeout for disconnect")
 	helloTimeout = flag.Int("ht", common.DurationToMillisecond(time.Second), "Sender sleep time after HELLO and before send start")
 
@@ -101,11 +107,10 @@ func (this DeadlineReset) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-func startSession() hash.Hash {
+func startSession() (hash.Hash, error) {
 	var hasher hash.Hash
 
 	switch *hashAlg {
-	case "":
 	case "md5":
 		hasher = md5.New()
 	case "sha224":
@@ -113,35 +118,31 @@ func startSession() hash.Hash {
 	case "sha256":
 		hasher = sha256.New()
 	default:
-		common.Error(fmt.Errorf("unknown hash algorithm: %s", *hashAlg))
+		return nil, fmt.Errorf("unknown hash algorithm: %s", *hashAlg)
 	}
 
-	return hasher
+	return hasher, nil
 }
 
 func endSession(hasher hash.Hash) {
 	if hasher != nil {
 		hashCalculated := fmt.Sprintf("%x", hasher.Sum(nil))
 
-		if hasher != nil {
-			common.Info("%s digest: %s", strings.ToUpper(*hashAlg), hashCalculated)
+		common.Info("%s digest: %s", strings.ToUpper(*hashAlg), hashCalculated)
 
-			if *hashExpected != "" {
-				if *hashExpected != hashCalculated {
-					common.Info("%s expect: %s", strings.ToUpper(*hashAlg), *hashExpected)
-					common.Warn("%s hash is wrong!", strings.ToUpper(*hashAlg))
-				} else {
-					common.Info("%s hash is correct!", strings.ToUpper(*hashAlg))
-				}
+		if *hashExpected != "" {
+			if *hashExpected != hashCalculated {
+				common.Info("%s expect: %s", strings.ToUpper(*hashAlg), *hashExpected)
+				common.Warn("%s hash is wrong!", strings.ToUpper(*hashAlg))
+			} else {
+				common.Info("%s hash is correct!", strings.ToUpper(*hashAlg))
 			}
 		}
-
-		common.DebugError(connection.Close())
 	}
 }
 
-func isSerialPortOptions(txt string) bool {
-	return len(txt) > 0 && (strings.Contains(txt, ",") || !strings.Contains(txt, ":"))
+func isSerialPortOptions(device string) bool {
+	return len(device) > 0 && (strings.Contains(device, ",") || !strings.Contains(device, ":"))
 }
 
 func asSocket(rwc io.ReadWriteCloser) net.Conn {
@@ -265,7 +266,7 @@ func dataReceiver(device string) error {
 	}
 
 	fileWriter := ioutil.Discard
-	hashDigest := startSession()
+	hashDigest, _ := startSession()
 	ba := make([]byte, blockSize)
 
 	if *filename != "" {
@@ -287,24 +288,21 @@ func dataReceiver(device string) error {
 	var n int64
 
 	if !isSerialPortOptions(device) {
-
 		if hashDigest != nil {
 			n, _ = io.CopyBuffer(io.MultiWriter(DeadlineReset{}, fileWriter, hashDigest), reader, ba)
 		} else {
-			n, _ = io.CopyBuffer(io.MultiWriter(DeadlineReset{}, fileWriter, ioutil.Discard), reader, ba)
+			n, _ = io.CopyBuffer(io.MultiWriter(DeadlineReset{}, fileWriter), reader, ba)
 		}
 	} else {
 		var writer io.Writer
 
-		st := common.MillisecondToDuration(*serialTimeout)
-
 		if hashDigest != nil {
 			writer = io.MultiWriter(fileWriter, hashDigest)
 		} else {
-			writer = io.MultiWriter(fileWriter, ioutil.Discard)
+			writer = io.MultiWriter(fileWriter)
 		}
 
-		timer := time.NewTimer(st)
+		timer := time.NewTimer(common.MillisecondToDuration(*serialTimeout))
 		timer.Stop()
 
 		isTimedout := false
@@ -334,17 +332,17 @@ func dataReceiver(device string) error {
 
 				n = n + int64(nn)
 
-				timer.Reset(st)
+				timer.Reset(common.MillisecondToDuration(*serialTimeout))
 			}
 		}()
 
-		for {
-			<-timer.C
-			isTimedout = true
-			common.Error(connection.Close())
-			time.Sleep(time.Millisecond * 250)
-			break
-		}
+		<-timer.C
+
+		isTimedout = true
+
+		common.Error(connection.Close())
+
+		time.Sleep(time.Millisecond * 250)
 	}
 
 	if asSocket(connection) != nil {
@@ -353,6 +351,8 @@ func dataReceiver(device string) error {
 		common.Info("Disconnect")
 	}
 
+	common.DebugError(connection.Close())
+
 	endSession(hashDigest)
 
 	needed := time.Since(start)
@@ -360,9 +360,9 @@ func dataReceiver(device string) error {
 	if needed.Seconds() >= 1 {
 		bytesPerSecond := int(float64(n) / float64(needed.Seconds()))
 
-		common.Info("Average Bytes received: %s/%v", common.FormatMemory(bytesPerSecond), common.MillisecondToDuration(*loopTimeout))
+		common.Info("Average Bytes received: %s/%v", common.FormatMemory(int64(bytesPerSecond)), common.MillisecondToDuration(*loopTimeout))
 	} else {
-		common.Info("Bytes received: %s/%v", common.FormatMemory(int(n)), needed)
+		common.Info("Bytes received: %s/%v", common.FormatMemory(n), needed)
 	}
 
 	if *filename != "" {
@@ -400,7 +400,7 @@ func dataSender(device string) error {
 	}
 
 	ba := make([]byte, blockSize)
-	hashDigest := startSession()
+	hashDigest, _ := startSession()
 
 	var n int64
 	var sum float64
@@ -425,70 +425,68 @@ func dataSender(device string) error {
 		}
 	}
 
-	for i := 0; i < *loopCount; i++ {
-		if *filename != "" {
-			reader = bytes.NewReader(fileBuffer)
+	if *filename != "" {
+		reader = bytes.NewReader(fileBuffer)
+	} else {
+		if *randomBytes {
+			reader = common.NewRandomReader()
 		} else {
-			if *randomBytes {
-				reader = common.NewRandomReader()
-			} else {
-				reader = common.NewZeroReader()
-			}
+			reader = common.NewZeroReader()
 		}
-
-		reader = common.NewThrottledReader(reader, int(readThrottle))
-
-		deadline := time.Now().Add(common.MillisecondToDuration(*loopTimeout))
-
-		if *useTls || isSerialPortOptions(device) {
-			n = 0
-
-			start := time.Now()
-			for time.Now().Before(deadline) {
-				blockN, blockErr := io.CopyN(writer, reader, blockSize)
-
-				if blockErr != nil {
-					err = blockErr
-				}
-
-				n += blockN
-			}
-			elapsed := time.Since(start)
-			n = int64(float64(n) / float64(elapsed.Seconds()) * float64(time.Second.Seconds()))
-
-			if err != nil && err != io.EOF && common.Error(err) {
-				return err
-			}
-		} else {
-			err = asSocket(connection).SetDeadline(deadline)
-			if err != nil {
-				return err
-			}
-
-			n, err = io.CopyBuffer(writer, reader, ba)
-
-			if err != nil {
-				if neterr, ok := err.(net.Error); !ok || !neterr.Timeout() {
-					return err
-				}
-			}
-		}
-
-		if *loopCount > 1 {
-			common.Info("Loop #%d Bytes sent: %s/%v", i, common.FormatMemory(int(n)), common.MillisecondToDuration(*loopTimeout))
-
-			if *loopSleep > 0 {
-				common.Info("Loop sleep timeout: %v", common.MillisecondToDuration(*loopSleep))
-
-				time.Sleep(common.MillisecondToDuration(*loopSleep))
-			}
-		} else {
-			common.Info("Bytes sent: %s/%v", common.FormatMemory(int(n)), common.MillisecondToDuration(*loopTimeout))
-		}
-		sum += float64(n)
 	}
 
-	common.Info("Average Bytes sent: %s/%v", common.FormatMemory(int(sum/float64(*loopCount))), common.MillisecondToDuration(*loopTimeout))
+	reader = common.NewThrottledReader(reader, int(readThrottle))
+
+	deadline := time.Now().Add(common.MillisecondToDuration(*loopTimeout))
+
+	if *useTls || isSerialPortOptions(device) {
+		n = 0
+
+		start := time.Now()
+		for time.Now().Before(deadline) {
+			blockN, blockErr := io.CopyN(writer, reader, blockSize)
+
+			if blockErr != nil {
+				err = blockErr
+			}
+
+			n += blockN
+		}
+		elapsed := time.Since(start)
+		n = int64(float64(n) / float64(elapsed.Seconds()) * float64(time.Second.Seconds()))
+
+		if err != nil && err != io.EOF && common.Error(err) {
+			return err
+		}
+	} else {
+		err = asSocket(connection).SetDeadline(deadline)
+		if err != nil {
+			return err
+		}
+
+		n, err = io.CopyBuffer(writer, reader, ba)
+
+		if err != nil {
+			if neterr, ok := err.(net.Error); !ok || !neterr.Timeout() {
+				return err
+			}
+		}
+	}
+
+	if *loopCount > 1 {
+		common.Info("Loop #%d Bytes sent: %s/%v", 99, common.FormatMemory(n), common.MillisecondToDuration(*loopTimeout))
+
+		if *loopSleep > 0 {
+			common.Info("Loop sleep timeout: %v", common.MillisecondToDuration(*loopSleep))
+
+			time.Sleep(common.MillisecondToDuration(*loopSleep))
+		}
+	} else {
+		common.Info("Bytes sent: %s/%v", common.FormatMemory(n), common.MillisecondToDuration(*loopTimeout))
+	}
+	sum += float64(n)
+
+	common.Info("Average Bytes sent: %s/%v", common.FormatMemory(int64(sum/float64(*loopCount))), common.MillisecondToDuration(*loopTimeout))
 
 	if asSocket(connection) != nil {
 		common.Info("Disconnect: %s", asSocket(connection).RemoteAddr().String())
@@ -496,12 +494,14 @@ func dataSender(device string) error {
 		common.Info("Disconnect")
 	}
 
+	common.DebugError(connection.Close())
+
 	endSession(hashDigest)
 
 	return nil
 }
 
-func run() error {
+func initialize() error {
 	var err error
 
 	blockSize, err = common.ParseMemory(*blocksizeString)
@@ -513,7 +513,7 @@ func run() error {
 	//	blockSize = int64(common.Min(int(blockSize), 115200/8))
 	//}
 
-	common.Info("Block size: %s = %d Bytes", common.FormatMemory(int(blockSize)), blockSize)
+	common.Info("Block size: %s = %d Bytes", common.FormatMemory(blockSize), blockSize)
 
 	readThrottle, err = common.ParseMemory(*readThrottleString)
 	if common.Error(err) {
@@ -550,6 +550,13 @@ func run() error {
 		}
 	}
 
+	*isDataSender = *client != "" || *isDataSender
+	*isDataReceiver = *server != "" || *isDataReceiver
+
+	return nil
+}
+
+func run() error {
 	if *server != "" {
 		var tcpListener *net.TCPListener
 		var tlsListener net.Listener
@@ -644,85 +651,89 @@ func run() error {
 		}
 	}
 
-	if isSerialPortOptions(*client) {
-		tty, mode, err := evaluateSerialPortOptions(*client)
-		if common.Error(err) {
-			return err
-		}
-
-		connection, err = serial.Open(tty, mode)
-		if common.Error(err) {
-			return err
-		}
-	} else {
-		if *useTls {
-			tlsPackage, err := common.GetTlsPackage()
+	for loop := 0; loop < *loopCount; loop++ {
+		if isSerialPortOptions(*client) {
+			tty, mode, err := evaluateSerialPortOptions(*client)
 			if common.Error(err) {
 				return err
 			}
 
-			hostname, _, err := net.SplitHostPort(*client)
+			connection, err = serial.Open(tty, mode)
 			if common.Error(err) {
 				return err
-			}
-
-			if hostname == "" {
-				hostname = "localhost"
-			}
-
-			// set hostname for self-signed cetificates
-			tlsPackage.Config.ServerName = hostname
-			tlsPackage.Config.InsecureSkipVerify = !*useTlsVerify
-
-			common.Info("Dial TLS connection: %s...", *client)
-
-			connection, err = tls.Dial("tcp", *client, &tlsPackage.Config)
-			if common.Error(err) {
-				return err
-			}
-
-			tlsSocket, ok := connection.(*tls.Conn)
-			if ok {
-				if *showTlsInfo {
-					ba, err := json.MarshalIndent(tlsSocket.ConnectionState(), "", "    ")
-					if common.Error(err) {
-						return err
-					}
-
-					common.Info("TLS connection state: %s", string(ba))
-				}
-
-				if !tlsSocket.ConnectionState().HandshakeComplete {
-					return fmt.Errorf("TLS handshake not completed")
-				}
 			}
 		} else {
-			common.Info("Dial connection: %s...", *client)
+			if *useTls {
+				tlsPackage, err := common.GetTlsPackage()
+				if common.Error(err) {
+					return err
+				}
 
-			tcpAddr, err := net.ResolveTCPAddr("tcp", *client)
-			if common.Error(err) {
-				return err
+				hostname, _, err := net.SplitHostPort(*client)
+				if common.Error(err) {
+					return err
+				}
+
+				if hostname == "" {
+					hostname = "localhost"
+				}
+
+				// set hostname for self-signed cetificates
+				tlsPackage.Config.ServerName = hostname
+				tlsPackage.Config.InsecureSkipVerify = !*useTlsVerify
+
+				common.Info("Dial TLS connection: %s...", *client)
+
+				connection, err = tls.Dial("tcp", *client, &tlsPackage.Config)
+				if common.Error(err) {
+					return err
+				}
+
+				tlsSocket, ok := connection.(*tls.Conn)
+				if ok {
+					if *showTlsInfo {
+						ba, err := json.MarshalIndent(tlsSocket.ConnectionState(), "", "    ")
+						if common.Error(err) {
+							return err
+						}
+
+						common.Info("TLS connection state: %s", string(ba))
+					}
+
+					if !tlsSocket.ConnectionState().HandshakeComplete {
+						return fmt.Errorf("TLS handshake not completed")
+					}
+				}
+			} else {
+				common.Info("Dial connection: %s...", *client)
+
+				tcpAddr, err := net.ResolveTCPAddr("tcp", *client)
+				if common.Error(err) {
+					return err
+				}
+
+				tcpCon, err := net.DialTCP("tcp", nil, tcpAddr)
+				if common.Error(err) {
+					return err
+				}
+
+				connection = tcpCon
 			}
-
-			tcpCon, err := net.DialTCP("tcp", nil, tcpAddr)
-			if common.Error(err) {
-				return err
-			}
-
-			connection = tcpCon
 		}
-	}
 
-	if asSocket(connection) != nil {
-		common.Info("Connected: %s", asSocket(connection).RemoteAddr().String())
-	} else {
-		common.Info("Connected: %s", *client)
-	}
+		if asSocket(connection) != nil {
+			common.Info("Connected: %s", asSocket(connection).RemoteAddr().String())
+		} else {
+			common.Info("Connected: %s", *client)
+		}
 
-	if *isDataReceiver {
-		common.Error(dataReceiver(*client))
-	} else {
-		common.Error(dataSender(*client))
+		if *isDataReceiver {
+			common.Error(dataReceiver(*client))
+		} else {
+			common.Error(dataSender(*client))
+		}
+
+		time.Sleep(common.MillisecondToDuration(*loopSleep))
 	}
 
 	return nil
