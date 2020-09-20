@@ -4,13 +4,12 @@ import (
 	"fmt"
 	"github.com/mpetavy/common"
 	"go.bug.st/serial"
-	"io"
 	"strconv"
 	"strings"
 )
 
 type SerialConnection struct {
-	port io.ReadWriteCloser
+	port serial.Port
 }
 
 func (serialConnection *SerialConnection) Read(p []byte) (n int, err error) {
@@ -19,6 +18,20 @@ func (serialConnection *SerialConnection) Read(p []byte) (n int, err error) {
 
 func (serialConnection *SerialConnection) Write(p []byte) (n int, err error) {
 	return serialConnection.port.Write(p)
+}
+
+func (serialConnection *SerialConnection) Reset() error {
+	//err := serialConnection.port.ResetInputBuffer()
+	//if common.Error(err) {
+	//	return err
+	//}
+	//
+	//err = serialConnection.port.ResetOutputBuffer()
+	//if common.Error(err) {
+	//	return err
+	//}
+
+	return nil
 }
 
 func (serialConnection *SerialConnection) Close() error {
@@ -92,8 +105,12 @@ func evaluateSerialPortOptions(device string) (string, *serial.Mode, error) {
 	portname = ss[0]
 	if len(ss) > 1 {
 		baudrate, err = strconv.Atoi(ss[1])
+		if err != nil || common.IndexOf([]string{"50", "75", "110", "134", "150", "200", "300", "600", "1200", "1800", "2400", "4800", "7200", "9600", "14400", "19200", "28800", "38400", "57600", "76800", "115200"}, ss[1]) == -1 {
+			err = fmt.Errorf("invalid baud rate: %s", ss[1])
+		}
+
 		if err != nil {
-			return "", nil, fmt.Errorf("invalid baudrate: %s", ss[1])
+			return "", nil, err
 		}
 	}
 	if len(ss) > 2 {
@@ -132,7 +149,7 @@ func evaluateSerialPortOptions(device string) (string, *serial.Mode, error) {
 		}
 	}
 
-	common.Info("Use serial port: %s Baudrate: %d %d %s %s", portname, baudrate, databits, pm, sb)
+	common.Info("Use serial port %s: %d %d %s %s", portname, baudrate, databits, pm, sb)
 
 	return portname, &serial.Mode{
 		BaudRate: baudrate,

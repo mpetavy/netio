@@ -1,18 +1,14 @@
 package main
 
 import (
-	"bytes"
 	"crypto/md5"
 	"crypto/sha256"
-	"crypto/tls"
-	"encoding/json"
 	"flag"
 	"fmt"
-	"go.bug.st/serial"
 	"hash"
 	"io"
 	"io/ioutil"
-	"net"
+	"netio/endpoint"
 	"os"
 	"strconv"
 	"strings"
@@ -20,12 +16,6 @@ import (
 
 	"github.com/mpetavy/common"
 )
-
-// -s /dev/ttyUSB0,115200 -ds -f README.md -h md5 -lc 5 -ls 5000
-// -c /dev/ttyUSB1,115200 -dr -h md5 -e fc7fa95c5659ccdf5aad8c883916a854 -lc 5
-
-// -s /dev/ttyUSB0,115200 -h md5 -e fc7fa95c5659ccdf5aad8c883916a854
-// -c /dev/ttyUSB1,115200 -h md5 -f README.md -lc 5 -ls 2000
 
 var (
 	LDFLAG_DEVELOPER = "mpetavy"                          // will be replaced with ldflag
@@ -58,7 +48,11 @@ var (
 	bufferSize          int64
 	readThrottle        int64
 	writeThrottle       int64
-	connection          io.ReadWriteCloser
+
+	isClient       bool
+	device         string
+	isSerialDevice bool
+	hashError      int
 )
 
 const (
@@ -87,418 +81,6 @@ func init() {
 	loopSleep = flag.Int("ls", common.DurationToMillisecond(time.Second), "Loop sleep between loop steps")
 	serialTimeout = flag.Int("st", common.DurationToMillisecond(time.Second), "Serial read timeout for disconnect")
 	helloTimeout = flag.Int("ht", common.DurationToMillisecond(time.Second), "Sender sleep time after HELLO and before send start")
-
-}
-
-type DeadlineReset struct {
-}
-
-func (this DeadlineReset) Write(p []byte) (n int, err error) {
-	tlsConn, ok := connection.(*tls.Conn)
-	if ok {
-		common.Error(tlsConn.SetDeadline(time.Now().Add(common.MillisecondToDuration(*serialTimeout))))
-	} else {
-		conn, ok := connection.(*net.TCPConn)
-		if ok {
-			common.Error(conn.SetDeadline(time.Now().Add(common.MillisecondToDuration(*serialTimeout))))
-		}
-	}
-
-	return len(p), nil
-}
-
-func startSession() (hash.Hash, error) {
-	var hasher hash.Hash
-
-	switch *hashAlg {
-	case "md5":
-		hasher = md5.New()
-	case "sha224":
-		hasher = sha256.New224()
-	case "sha256":
-		hasher = sha256.New()
-	default:
-		return nil, fmt.Errorf("unknown hash algorithm: %s", *hashAlg)
-	}
-
-	return hasher, nil
-}
-
-func endSession(hasher hash.Hash) {
-	if hasher != nil {
-		hashCalculated := fmt.Sprintf("%x", hasher.Sum(nil))
-
-		common.Info("%s digest: %s", strings.ToUpper(*hashAlg), hashCalculated)
-
-		if *hashExpected != "" {
-			if *hashExpected != hashCalculated {
-				common.Info("%s expect: %s", strings.ToUpper(*hashAlg), *hashExpected)
-				common.Warn("%s hash is wrong!", strings.ToUpper(*hashAlg))
-			} else {
-				common.Info("%s hash is correct!", strings.ToUpper(*hashAlg))
-			}
-		}
-	}
-}
-
-func isSerialPortOptions(device string) bool {
-	return len(device) > 0 && (strings.Contains(device, ",") || !strings.Contains(device, ":"))
-}
-
-func asSocket(rwc io.ReadWriteCloser) net.Conn {
-	socket, ok := rwc.(net.Conn)
-
-	if !ok {
-		return nil
-	}
-
-	return socket
-}
-
-func evaluateSerialPortOptions(txt string) (string, *serial.Mode, error) {
-	ss := strings.Split(txt, ",")
-
-	baudrate := 9600
-	databits := 8
-	stopbits := serial.OneStopBit
-	paritymode := serial.NoParity
-	pm := "N"
-	sb := "1"
-
-	var portname string
-	var err error
-
-	portname = ss[0]
-	if len(ss) > 1 {
-		baudrate, err = strconv.Atoi(ss[1])
-		if err != nil {
-			return "", nil, fmt.Errorf("invalid baudrate: %s", ss[1])
-		}
-	}
-	if len(ss) > 2 {
-		databits, err = strconv.Atoi(ss[2])
-		if err != nil {
-			return "", nil, fmt.Errorf("invalid databits: %s", ss[2])
-		}
-	}
-	if len(ss) > 3 {
-		pm = strings.ToUpper(ss[3][:1])
-
-		switch pm {
-		case "N":
-			paritymode = serial.NoParity
-		case "O":
-			paritymode = serial.OddParity
-		case "E":
-			paritymode = serial.EvenParity
-		default:
-			return "", nil, fmt.Errorf("invalid partitymode: %s", pm)
-		}
-	}
-
-	if len(ss) > 4 {
-		sb = strings.ToUpper(ss[4][:1])
-
-		switch sb {
-		case "1":
-			stopbits = serial.OneStopBit
-		case "1.5":
-			stopbits = serial.OnePointFiveStopBits
-		case "2":
-			stopbits = serial.TwoStopBits
-		default:
-			return "", nil, fmt.Errorf("invalid stopbits: %s", sb)
-		}
-	}
-
-	common.Info("Use serial port: %s Baudrate: %d %d %s %s", portname, baudrate, databits, pm, sb)
-
-	return portname, &serial.Mode{
-		BaudRate: baudrate,
-		DataBits: databits,
-		Parity:   paritymode,
-		StopBits: stopbits,
-	}, nil
-}
-
-func waitForHello() error {
-	received := ""
-	ba := make([]byte, len(HELLO))
-
-	common.Info("Waiting for HELLO...")
-
-	for {
-		n, err := connection.Read(ba)
-		if err != nil {
-			return err
-		}
-
-		if n > 0 {
-			received = received + string(ba[:n])
-
-			if strings.HasSuffix(received, HELLO) {
-				common.Info("Received HELLO")
-
-				break
-			}
-		}
-	}
-
-	return nil
-}
-
-func sendHello() error {
-	common.Info("Sending HELLO")
-	_, err := io.Copy(connection, strings.NewReader(HELLO))
-	if common.Error(err) {
-		return err
-	}
-
-	return nil
-}
-
-func dataReceiver(device string) error {
-	if *isDataReceiver {
-		err := sendHello()
-		if common.Error(err) {
-			return err
-		}
-	}
-
-	fileWriter := ioutil.Discard
-	hashDigest, _ := startSession()
-	ba := make([]byte, bufferSize)
-
-	if *filename != "" {
-		common.Info("Dump to file: %s", *filename)
-
-		file, err := os.OpenFile(*filename, os.O_CREATE|os.O_APPEND|os.O_RDWR, os.ModePerm)
-		if common.Error(err) {
-			return err
-		}
-
-		fileWriter = file
-	}
-
-	common.Info("Receiving bytes...")
-
-	reader := common.NewThrottledReader(connection, int(readThrottle))
-	start := time.Now()
-
-	var n int64
-
-	if !isSerialPortOptions(device) {
-		if hashDigest != nil {
-			n, _ = io.CopyBuffer(io.MultiWriter(DeadlineReset{}, fileWriter, hashDigest), reader, ba)
-		} else {
-			n, _ = io.CopyBuffer(io.MultiWriter(DeadlineReset{}, fileWriter), reader, ba)
-		}
-	} else {
-		var writer io.Writer
-
-		if hashDigest != nil {
-			writer = io.MultiWriter(fileWriter, hashDigest)
-		} else {
-			writer = io.MultiWriter(fileWriter)
-		}
-
-		timer := time.NewTimer(common.MillisecondToDuration(*serialTimeout))
-		timer.Stop()
-
-		isTimedout := false
-
-		go func() {
-			for common.AppLifecycle().IsSet() {
-				nn, err := reader.Read(ba)
-
-				if isTimedout {
-					return
-				}
-
-				timer.Stop()
-
-				if n == 0 {
-					common.Info("Connected")
-				}
-
-				if common.Error(err) {
-					return
-				}
-
-				_, err = writer.Write(ba[:nn])
-				if common.Error(err) {
-					return
-				}
-
-				n = n + int64(nn)
-
-				timer.Reset(common.MillisecondToDuration(*serialTimeout))
-			}
-		}()
-
-		<-timer.C
-
-		isTimedout = true
-
-		common.Error(connection.Close())
-
-		time.Sleep(time.Millisecond * 250)
-	}
-
-	if asSocket(connection) != nil {
-		common.Info("Disconnect: %s", asSocket(connection).RemoteAddr().String())
-	} else {
-		common.Info("Disconnect")
-	}
-
-	common.DebugError(connection.Close())
-
-	endSession(hashDigest)
-
-	needed := time.Since(start)
-
-	if needed.Seconds() >= 1 {
-		bytesPerSecond := int(float64(n) / float64(needed.Seconds()))
-
-		common.Info("Average Bytes received: %s/%v", common.FormatMemory(int64(bytesPerSecond)), common.MillisecondToDuration(*loopTimeout))
-	} else {
-		common.Info("Bytes received: %s/%v", common.FormatMemory(n), needed)
-	}
-
-	if *filename != "" {
-		common.Info("Close file: %s", *filename)
-
-		file := fileWriter.(*os.File)
-
-		common.DebugError(file.Close())
-	}
-
-	return nil
-}
-
-func dataSender(device string) error {
-	if *isDataSender {
-		err := waitForHello()
-		if common.Error(err) {
-			return err
-		}
-
-		time.Sleep(common.MillisecondToDuration(*helloTimeout))
-	}
-
-	if *filename != "" {
-		common.Info("Send file: %s", *filename)
-	} else {
-		common.Info("Timeout: %v", common.MillisecondToDuration(*loopTimeout))
-		common.Info("Loop count: %d", *loopCount)
-
-		if *randomBytes {
-			common.Info("Send: Random Bytes")
-		} else {
-			common.Info("Send: Zero Bytes")
-		}
-	}
-
-	ba := make([]byte, bufferSize)
-	hashDigest, _ := startSession()
-
-	var n int64
-	var sum float64
-	var writer io.Writer
-
-	if hashDigest != nil {
-		writer = io.MultiWriter(connection, hashDigest)
-	} else {
-		writer = connection
-	}
-
-	writer = common.NewThrottledWriter(writer, int(writeThrottle))
-
-	var fileBuffer []byte
-	var reader io.Reader
-	var err error
-
-	if *filename != "" {
-		fileBuffer, err = ioutil.ReadFile(*filename)
-		if err != nil {
-			return err
-		}
-	}
-
-	if *filename != "" {
-		reader = bytes.NewReader(fileBuffer)
-	} else {
-		if *randomBytes {
-			reader = common.NewRandomReader()
-		} else {
-			reader = common.NewZeroReader()
-		}
-	}
-
-	reader = common.NewThrottledReader(reader, int(readThrottle))
-
-	deadline := time.Now().Add(common.MillisecondToDuration(*loopTimeout))
-
-	if *useTls || isSerialPortOptions(device) {
-		n = 0
-
-		start := time.Now()
-		for time.Now().Before(deadline) {
-			blockN, blockErr := io.CopyN(writer, reader, bufferSize)
-
-			if blockErr != nil {
-				err = blockErr
-			}
-
-			n += blockN
-		}
-		elapsed := time.Since(start)
-		n = int64(float64(n) / float64(elapsed.Seconds()) * float64(time.Second.Seconds()))
-
-		if err != nil && err != io.EOF && common.Error(err) {
-			return err
-		}
-	} else {
-		err = asSocket(connection).SetDeadline(deadline)
-		if err != nil {
-			return err
-		}
-
-		n, err = io.CopyBuffer(writer, reader, ba)
-
-		if err != nil {
-			if neterr, ok := err.(net.Error); !ok || !neterr.Timeout() {
-				return err
-			}
-		}
-	}
-
-	if *loopCount > 1 {
-		common.Info("Loop #%d Bytes sent: %s/%v", 99, common.FormatMemory(n), common.MillisecondToDuration(*loopTimeout))
-
-		if *loopSleep > 0 {
-			common.Info("Loop sleep timeout: %v", common.MillisecondToDuration(*loopSleep))
-
-			time.Sleep(common.MillisecondToDuration(*loopSleep))
-		}
-	} else {
-		common.Info("Bytes sent: %s/%v", common.FormatMemory(n), common.MillisecondToDuration(*loopTimeout))
-	}
-	sum += float64(n)
-
-	common.Info("Average Bytes sent: %s/%v", common.FormatMemory(int64(sum/float64(*loopCount))), common.MillisecondToDuration(*loopTimeout))
-
-	if asSocket(connection) != nil {
-		common.Info("Disconnect: %s", asSocket(connection).RemoteAddr().String())
-	} else {
-		common.Info("Disconnect")
-	}
-
-	common.DebugError(connection.Close())
-
-	endSession(hashDigest)
-
-	return nil
 }
 
 func initialize() error {
@@ -510,7 +92,7 @@ func initialize() error {
 	}
 
 	if isSerialPortOptions(*server) || isSerialPortOptions(*client) {
-		bufferSize = int64(common.Min(16, int(bufferSize)))
+		bufferSize = int64(common.Min(1024, int(bufferSize)))
 	}
 
 	common.Info("Buffer size: %s", common.FormatMemory(bufferSize))
@@ -556,184 +138,304 @@ func initialize() error {
 	return nil
 }
 
-func run() error {
-	if *server != "" {
-		var tcpListener *net.TCPListener
-		var tlsListener net.Listener
+func openHasher() (hash.Hash, error) {
+	var hasher hash.Hash
 
-		if !isSerialPortOptions(*server) {
-			if *useTls {
-				tlsPackage, err := common.GetTlsPackage()
-				if common.Error(err) {
-					return err
-				}
+	switch *hashAlg {
+	case "md5":
+		hasher = md5.New()
+	case "sha224":
+		hasher = sha256.New224()
+	case "sha256":
+		hasher = sha256.New()
+	default:
+		return nil, fmt.Errorf("unknown hash algorithm: %s", *hashAlg)
+	}
 
-				if *useTlsVerify {
-					tlsPackage.Config.ClientAuth = tls.RequireAndVerifyClientCert
-				}
+	return hasher, nil
+}
 
-				tlsListener, err = tls.Listen("tcp", *server, &tlsPackage.Config)
-				if common.Error(err) {
-					return err
-				}
+func closeHasher(hasher hash.Hash) {
+	if hasher != nil {
+		hashCalculated := fmt.Sprintf("%x", hasher.Sum(nil))
+
+		common.Info("%s hash: %s", strings.ToUpper(*hashAlg), hashCalculated)
+
+		if *hashExpected != "" {
+			common.Info("%s expect: %s", strings.ToUpper(*hashAlg), *hashExpected)
+
+			if *hashExpected != hashCalculated {
+				hashError++
+
+				common.Info("%s hash error #%d", strings.ToUpper(*hashAlg), hashError)
 			} else {
-				tcpAddr, err := net.ResolveTCPAddr("tcp", *server)
-				if common.Error(err) {
-					return err
-				}
-
-				tcpListener, err = net.ListenTCP("tcp", tcpAddr)
-				if common.Error(err) {
-					return err
-				}
+				common.Info("%s hash correct", strings.ToUpper(*hashAlg))
 			}
 		}
 
-		for {
-			if isSerialPortOptions(*server) {
-				tty, mode, err := evaluateSerialPortOptions(*server)
-				if common.Error(err) {
-					return err
-				}
+		hasher.Reset()
+	}
+}
 
-				connection, err = serial.Open(tty, mode)
-				if common.Error(err) {
-					return err
-				}
-			} else {
-				ips, err := common.GetHostAddrs(true, nil)
-				if common.Error(err) {
-					return err
-				}
+func isSerialPortOptions(device string) bool {
+	return len(device) > 0 && (strings.Contains(device, ",") || !strings.Contains(device, ":"))
+}
 
-				common.Info("Local IPs: %v", ips)
-				common.Info("Accept connection: %s...", *server)
+func waitForHello(connection endpoint.Connection) error {
+	received := ""
+	ba := make([]byte, len(HELLO))
 
-				if *useTls {
-					s, err := tlsListener.Accept()
-					if common.Error(err) {
-						return err
-					}
+	common.Info("Waiting for HELLO...")
 
-					tlsConn, ok := s.(*tls.Conn)
-					if ok {
-						err := tlsConn.Handshake()
+	for {
+		n, err := connection.Read(ba)
+		if err != nil {
+			return err
+		}
 
-						if common.Error(err) {
-							common.DebugError(s.Close())
+		if n > 0 {
+			received = received + string(ba[:n])
 
-							continue
-						}
-					}
+			if strings.HasSuffix(received, HELLO) {
+				common.Info("Received HELLO")
 
-					connection = s
-				} else {
-					s, err := tcpListener.AcceptTCP()
-					if common.Error(err) {
-						return err
-					}
-
-					connection = s
-				}
-
-				if asSocket(connection) != nil {
-					common.Info("Connected: %s", asSocket(connection).RemoteAddr().String())
-				} else {
-					common.Info("Connected: %s", *server)
-				}
-			}
-
-			if *isDataSender {
-				common.Error(dataSender(*server))
-			} else {
-				common.Error(dataReceiver(*server))
+				break
 			}
 		}
 	}
 
-	for loop := 0; loop < *loopCount; loop++ {
-		if isSerialPortOptions(*client) {
-			tty, mode, err := evaluateSerialPortOptions(*client)
-			if common.Error(err) {
-				return err
-			}
+	return nil
+}
 
-			connection, err = serial.Open(tty, mode)
+func sendHello(connection endpoint.Connection) error {
+	common.Info("Sending HELLO")
+	_, err := io.Copy(connection, strings.NewReader(HELLO))
+	if common.Error(err) {
+		return err
+	}
+
+	return nil
+}
+
+func readData(reader io.Reader) (hash.Hash, int64, time.Duration, error) {
+	var writer io.Writer
+	var err error
+
+	hasher, err := openHasher()
+	if common.Error(err) {
+		return nil, 0, 0, err
+	}
+
+	if *filename != "" {
+		b, _ := common.FileExists(*filename)
+
+		if b {
+			return nil, 0, 0, fmt.Errorf("file already exists: %s", *filename)
+		}
+
+		file, err := os.OpenFile(*filename, os.O_CREATE|os.O_APPEND|os.O_RDWR, os.ModePerm)
+		if common.Error(err) {
+			return nil, 0, 0, err
+		}
+
+		defer func() {
+			common.DebugError(file.Close())
+		}()
+
+		writer = file
+	} else {
+		writer = ioutil.Discard
+	}
+
+	common.Info("Reading bytes ...")
+
+	ba := make([]byte, bufferSize)
+	start := time.Now()
+
+	reader = common.NewTimeoutReader(reader, common.MillisecondToDuration(*loopTimeout), false)
+
+	n, err := io.CopyBuffer(io.MultiWriter(hasher, writer), reader, ba)
+	if common.Error(err) {
+		return nil, 0, 0, err
+	}
+
+	return hasher, n, time.Since(start), nil
+}
+
+func sendData(writer io.Writer) (hash.Hash, int64, time.Duration, error) {
+	var reader io.Reader
+	var err error
+
+	hasher, err := openHasher()
+	if common.Error(err) {
+		return nil, 0, 0, err
+	}
+
+	if *filename != "" {
+		file, err := os.Open(*filename)
+		if err != nil {
+			return nil, 0, 0, err
+		}
+
+		defer func() {
+			common.DebugError(file.Close())
+		}()
+
+		reader = file
+
+		filesize, err := common.FileSize(*filename)
+		if err != nil {
+			return nil, 0, 0, err
+		}
+
+		common.Info("Sending file content: %v %v bytes ...", *filename, filesize)
+	} else {
+		if *randomBytes {
+			reader = common.NewRandomReader()
+
+			common.Info("Sending random bytes ...")
+		} else {
+			reader = common.NewZeroReader()
+
+			common.Info("Sending zero bytes ...")
+		}
+	}
+
+	ba := make([]byte, bufferSize)
+	start := time.Now()
+
+	if *loopTimeout > 0 {
+		reader = common.NewDeadlineReader(reader, common.MillisecondToDuration(*loopTimeout))
+	}
+
+	n, err := io.CopyBuffer(io.MultiWriter(hasher, writer), reader, ba)
+	if common.Error(err) {
+		return nil, 0, 0, err
+	}
+
+	return hasher, n, time.Since(start), nil
+}
+
+func work(ep endpoint.Endpoint) error {
+	connection, err := ep.GetConnection()
+	if common.Error(err) {
+		return err
+	}
+
+	err = connection.Reset()
+	if common.Error(err) {
+		return err
+	}
+
+	defer func() {
+		common.DebugError(connection.Close())
+	}()
+
+	if *isDataSender {
+		var duration time.Duration
+		var hasher hash.Hash
+		var n int64
+
+		hasher, n, duration, err = sendData(connection)
+		if common.Error(err) {
+			return err
+		}
+
+		common.Info("Bytes sent: %v/%+v", common.FormatMemory(n), duration)
+
+		closeHasher(hasher)
+	}
+
+	if *isDataReceiver {
+		var duration time.Duration
+		var hasher hash.Hash
+		var n int64
+
+		hasher, n, duration, err = readData(connection)
+		if common.Error(err) {
+			return err
+		}
+
+		common.Info("Bytes read: %v/%+v", common.FormatMemory(n), duration)
+
+		closeHasher(hasher)
+	}
+
+	common.DebugError(connection.Close())
+
+	return nil
+}
+
+func run1() error {
+	err := initialize()
+	if common.Error(err) {
+		return err
+	}
+
+	isClient = *client != ""
+
+	if isClient {
+		device = *client
+	} else {
+		device = *server
+	}
+
+	isSerialDevice = isSerialPortOptions(device)
+
+	var ep endpoint.Endpoint
+
+	if isSerialDevice {
+		ep, err = endpoint.NewSerialServer(device)
+		if common.Error(err) {
+			return err
+		}
+	} else {
+		if isClient {
+			ep, err = endpoint.NewNetworkClient(device, *useTls, *useTlsVerify)
 			if common.Error(err) {
 				return err
 			}
 		} else {
-			if *useTls {
-				tlsPackage, err := common.GetTlsPackage()
-				if common.Error(err) {
-					return err
-				}
-
-				hostname, _, err := net.SplitHostPort(*client)
-				if common.Error(err) {
-					return err
-				}
-
-				if hostname == "" {
-					hostname = "localhost"
-				}
-
-				// set hostname for self-signed cetificates
-				tlsPackage.Config.ServerName = hostname
-				tlsPackage.Config.InsecureSkipVerify = !*useTlsVerify
-
-				common.Info("Dial TLS connection: %s...", *client)
-
-				connection, err = tls.Dial("tcp", *client, &tlsPackage.Config)
-				if common.Error(err) {
-					return err
-				}
-
-				tlsSocket, ok := connection.(*tls.Conn)
-				if ok {
-					if *showTlsInfo {
-						ba, err := json.MarshalIndent(tlsSocket.ConnectionState(), "", "    ")
-						if common.Error(err) {
-							return err
-						}
-
-						common.Info("TLS connection state: %s", string(ba))
-					}
-
-					if !tlsSocket.ConnectionState().HandshakeComplete {
-						return fmt.Errorf("TLS handshake not completed")
-					}
-				}
-			} else {
-				common.Info("Dial connection: %s...", *client)
-
-				tcpAddr, err := net.ResolveTCPAddr("tcp", *client)
-				if common.Error(err) {
-					return err
-				}
-
-				tcpCon, err := net.DialTCP("tcp", nil, tcpAddr)
-				if common.Error(err) {
-					return err
-				}
-
-				connection = tcpCon
+			ep, err = endpoint.NewNetworkServer(device, *useTls, *useTlsVerify)
+			if common.Error(err) {
+				return err
 			}
 		}
+	}
 
-		if asSocket(connection) != nil {
-			common.Info("Connected: %s", asSocket(connection).RemoteAddr().String())
-		} else {
-			common.Info("Connected: %s", *client)
+	err = ep.Start()
+	if common.Error(err) {
+		return err
+	}
+
+	defer func() {
+		common.Error(ep.Stop())
+	}()
+
+	for loop := 0; loop < *loopCount || (*loopCount == 0); loop++ {
+		if *loopCount > 1 {
+			common.Info("Loop #%v", loop)
 		}
 
+		// FIXME
 		if *isDataReceiver {
-			common.Error(dataReceiver(*client))
-		} else {
-			common.Error(dataSender(*client))
+			*filename = "dump" + strconv.Itoa(loop)
+			common.FileDelete(*filename)
+
 		}
 
-		time.Sleep(common.MillisecondToDuration(*loopSleep))
+		err = work(ep)
+		if common.Error(err) {
+			return err
+		}
+
+		if *isDataSender && *loopCount > 1 && *loopSleep > 0 {
+			common.Info("Loop sleep: %v", common.MillisecondToDuration(*loopSleep))
+
+			time.Sleep(common.MillisecondToDuration(*loopSleep))
+		}
+
+		common.Info("")
 	}
 
 	return nil

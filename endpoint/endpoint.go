@@ -10,4 +10,5 @@ type Endpoint interface {
 
 type Connection interface {
 	io.ReadWriteCloser
+	Reset() error
 }
