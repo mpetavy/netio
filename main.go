@@ -304,7 +304,7 @@ func sendData(writer io.Writer) (hash.Hash, int64, time.Duration, error) {
 	ba := make([]byte, bufferSize)
 	start := time.Now()
 
-	if *loopTimeout > 0 {
+	if *filename == "" && *loopTimeout > 0 {
 		reader = common.NewDeadlineReader(reader, common.MillisecondToDuration(*loopTimeout))
 	}
 
