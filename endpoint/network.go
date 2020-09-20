@@ -20,6 +20,10 @@ func (networkConnection *NetworkConnection) Write(p []byte) (n int, err error) {
 	return networkConnection.socket.Write(p)
 }
 
+func (networkConnection *NetworkConnection) Reset() error {
+	return nil
+}
+
 func (networkConnection *NetworkConnection) Close() error {
 	defer func() {
 		networkConnection.socket = nil
