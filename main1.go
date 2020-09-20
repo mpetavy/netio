@@ -207,7 +207,7 @@ func run1() error {
 		common.Error(ep.Stop())
 	}()
 
-	for loop := 0; loop < *loopCount; loop++ {
+	for loop := 0; loop < *loopCount || (*loopCount == 0); loop++ {
 		if *loopCount > 1 {
 			common.Info("Loop #%v", loop)
 		}
@@ -217,11 +217,13 @@ func run1() error {
 			return err
 		}
 
-		if *loopCount > 1 && *isDataSender && *loopSleep > 0 {
-			common.Info("Loop #%v: sleep timeout: %v", loop, common.MillisecondToDuration(*loopSleep))
+		if *isDataSender && *loopCount > 1 && *loopSleep > 0 {
+			common.Info("Loop sleep: %v", common.MillisecondToDuration(*loopSleep))
 
 			time.Sleep(common.MillisecondToDuration(*loopSleep))
 		}
+
+		common.Info("")
 	}
 
 	return nil
