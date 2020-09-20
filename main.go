@@ -44,7 +44,7 @@ var (
 	useTlsVerify        *bool
 	isDataSender        *bool
 	isDataReceiver      *bool
-	blocksizeString     *string
+	bufferSizeString    *string
 	readThrottleString  *string
 	writeThrottleString *string
 	loopCount           *int
@@ -55,7 +55,7 @@ var (
 	hashExpected        *string
 	randomBytes         *bool
 	loopSleep           *int
-	blockSize           int64
+	bufferSize          int64
 	readThrottle        int64
 	writeThrottle       int64
 	connection          io.ReadWriteCloser
@@ -79,7 +79,7 @@ func init() {
 	hashAlg = flag.String("h", "md5", "Hash algorithm (md5, sha224, sha256)")
 	hashExpected = flag.String("e", "", "Expected hash")
 	randomBytes = flag.Bool("r", false, "Send random bytes (or '0' bytes)")
-	blocksizeString = flag.String("bs", "32K", "Block size in bytes")
+	bufferSizeString = flag.String("bs", "32K", "Buffer size in bytes")
 	readThrottleString = flag.String("rt", "0", "Read throttled bytes/sec")
 	writeThrottleString = flag.String("wt", "0", "Write throttled bytes/sec")
 	loopCount = flag.Int("lc", 1, "Loop count")
@@ -267,7 +267,7 @@ func dataReceiver(device string) error {
 
 	fileWriter := ioutil.Discard
 	hashDigest, _ := startSession()
-	ba := make([]byte, blockSize)
+	ba := make([]byte, bufferSize)
 
 	if *filename != "" {
 		common.Info("Dump to file: %s", *filename)
@@ -399,7 +399,7 @@ func dataSender(device string) error {
 		}
 	}
 
-	ba := make([]byte, blockSize)
+	ba := make([]byte, bufferSize)
 	hashDigest, _ := startSession()
 
 	var n int64
@@ -444,7 +444,7 @@ func dataSender(device string) error {
 
 		start := time.Now()
 		for time.Now().Before(deadline) {
-			blockN, blockErr := io.CopyN(writer, reader, blockSize)
+			blockN, blockErr := io.CopyN(writer, reader, bufferSize)
 
 			if blockErr != nil {
 				err = blockErr
@@ -504,16 +504,16 @@ func dataSender(device string) error {
 func initialize() error {
 	var err error
 
-	blockSize, err = common.ParseMemory(*blocksizeString)
+	bufferSize, err = common.ParseMemory(*bufferSizeString)
 	if common.Error(err) {
 		return err
 	}
 
-	//if isSerialPortOptions(*server) || isSerialPortOptions(*client) {
-	//	blockSize = int64(common.Min(int(blockSize), 115200/8))
-	//}
+	if isSerialPortOptions(*server) || isSerialPortOptions(*client) {
+		bufferSize = int64(common.Min(16, int(bufferSize)))
+	}
 
-	common.Info("Block size: %s = %d Bytes", common.FormatMemory(blockSize), blockSize)
+	common.Info("Buffer size: %s", common.FormatMemory(bufferSize))
 
 	readThrottle, err = common.ParseMemory(*readThrottleString)
 	if common.Error(err) {

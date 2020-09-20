@@ -49,7 +49,7 @@ func readData(reader io.Reader) (hash.Hash, int64, time.Duration, error) {
 
 	common.Info("Reading bytes ...")
 
-	ba := make([]byte, blockSize)
+	ba := make([]byte, bufferSize)
 	start := time.Now()
 
 	reader = common.NewTimeoutReader(reader, common.MillisecondToDuration(*loopTimeout), false)
@@ -101,7 +101,7 @@ func sendData(writer io.Writer) (hash.Hash, int64, time.Duration, error) {
 		}
 	}
 
-	ba := make([]byte, blockSize)
+	ba := make([]byte, bufferSize)
 	start := time.Now()
 
 	if *loopTimeout > 0 {
