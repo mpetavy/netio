@@ -6,6 +6,7 @@ import (
 	"go.bug.st/serial"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type SerialConnection struct {
@@ -44,6 +45,8 @@ func (serialConnection *SerialConnection) Close() error {
 		if common.Error(err) {
 			return err
 		}
+
+		time.Sleep(time.Millisecond * 200)
 	}
 
 	return nil
