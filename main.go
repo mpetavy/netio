@@ -10,12 +10,14 @@ import (
 	"io/ioutil"
 	"netio/endpoint"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/mpetavy/common"
 )
+
+// -s /dev/ttyUSB0,115200 -lc 0
+// -c /dev/ttyUSB1,115200 -f test -lc 5 -ls 2000
 
 var (
 	LDFLAG_DEVELOPER = "mpetavy"                          // will be replaced with ldflag
@@ -30,7 +32,6 @@ var (
 	server              *string
 	filename            *string
 	useTls              *bool
-	showTlsInfo         *bool
 	useTlsVerify        *bool
 	isDataSender        *bool
 	isDataReceiver      *bool
@@ -39,8 +40,7 @@ var (
 	writeThrottleString *string
 	loopCount           *int
 	loopTimeout         *int
-	serialTimeout       *int
-	helloTimeout        *int
+	readyTimeout        *int
 	hashAlg             *string
 	hashExpected        *string
 	randomBytes         *bool
@@ -56,7 +56,7 @@ var (
 )
 
 const (
-	HELLO = "###HELLO###"
+	READY = "###-READY-###"
 )
 
 func init() {
@@ -66,7 +66,6 @@ func init() {
 	server = flag.String("s", "", "Server address/serial port")
 	filename = flag.String("f", "", "Filename to write to (server) or read from (client)")
 	useTls = flag.Bool("tls", false, "Use TLS")
-	showTlsInfo = flag.Bool("tls.info", false, "Show TLS info")
 	useTlsVerify = flag.Bool("tls.verify", false, "TLS verification verification")
 	isDataSender = flag.Bool("ds", false, "Act as data sender")
 	isDataReceiver = flag.Bool("dr", false, "Act as data receiver")
@@ -79,8 +78,7 @@ func init() {
 	loopCount = flag.Int("lc", 1, "Loop count")
 	loopTimeout = flag.Int("lt", common.DurationToMillisecond(time.Second), "Loop timeout")
 	loopSleep = flag.Int("ls", common.DurationToMillisecond(time.Second), "Loop sleep between loop steps")
-	serialTimeout = flag.Int("st", common.DurationToMillisecond(time.Second), "Serial read timeout for disconnect")
-	helloTimeout = flag.Int("ht", common.DurationToMillisecond(time.Second), "Sender sleep time after HELLO and before send start")
+	readyTimeout = flag.Int("ht", common.DurationToMillisecond(time.Second), "Sender sleep time after HELLO and before send start")
 }
 
 func initialize() error {
@@ -181,9 +179,9 @@ func isSerialPortOptions(device string) bool {
 	return len(device) > 0 && (strings.Contains(device, ",") || !strings.Contains(device, ":"))
 }
 
-func waitForHello(connection endpoint.Connection) error {
+func waitForReady(connection endpoint.Connection) error {
 	received := ""
-	ba := make([]byte, len(HELLO))
+	ba := make([]byte, len(READY))
 
 	common.Info("Waiting for HELLO...")
 
@@ -196,7 +194,7 @@ func waitForHello(connection endpoint.Connection) error {
 		if n > 0 {
 			received = received + string(ba[:n])
 
-			if strings.HasSuffix(received, HELLO) {
+			if strings.HasSuffix(received, READY) {
 				common.Info("Received HELLO")
 
 				break
@@ -207,9 +205,9 @@ func waitForHello(connection endpoint.Connection) error {
 	return nil
 }
 
-func sendHello(connection endpoint.Connection) error {
+func sendReady(connection endpoint.Connection) error {
 	common.Info("Sending HELLO")
-	_, err := io.Copy(connection, strings.NewReader(HELLO))
+	_, err := io.Copy(connection, strings.NewReader(READY))
 	if common.Error(err) {
 		return err
 	}
@@ -415,13 +413,6 @@ func run1() error {
 	for loop := 0; loop < *loopCount || (*loopCount == 0); loop++ {
 		if *loopCount > 1 {
 			common.Info("Loop #%v", loop)
-		}
-
-		// FIXME
-		if *isDataReceiver {
-			*filename = "dump" + strconv.Itoa(loop)
-			common.FileDelete(*filename)
-
 		}
 
 		err = work(ep)
