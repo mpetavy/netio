@@ -27,7 +27,6 @@ if exist netio-%LDFLAG_VERSION%-%LDFLAG_COUNTER%-windows-amd64.tar.gz del netio-
 if exist netio-%LDFLAG_VERSION%-%LDFLAG_COUNTER%-linux-amd64.tar.gz del netio-%LDFLAG_VERSION%-%LDFLAG_COUNTER%-linux-amd64.tar.gz
 if exist netio/netio-%LDFLAG_VERSION%-%LDFLAG_COUNTER%-linux-arm6.tar.gz del netio/netio-%LDFLAG_VERSION%-%LDFLAG_COUNTER%-linux-arm6.tar.gz
 
-docker container rm -f netio-builder
 docker image rm -f netio-builder
 
 git log ""--pretty=format:"%%h | %%ai | %%s %%d [%%an]""" > CHANGES.txt

@@ -26,7 +26,6 @@ fi
 [ -e netio-$LDFLAG_VERSION-$LDFLAG_COUNTER-linux-arm6.tar.gz ] && rm netio-$LDFLAG_VERSION-$LDFLAG_COUNTER-linux-arm6.tar.gz
 
 if [ ! -z "$(docker images -q netio-builder)" ]; then
-  docker container rm -f netio-builder
   docker image rm -f netio-builder
 fi
 
