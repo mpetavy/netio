@@ -34,6 +34,35 @@ The server can be configured to verify the hash digest with a defined value (-e)
 With that data throughput performance can be measured.
 * If a file content for transmission is provided then each loop step transfers the data whithout limitation
 
+## Connection roles and data partner roles
+With two NETIO there must always be a "client" and a "server" to communicate.
+
+NETIO can be starter in "client" (-c) or "server" (-s) connection role.
+
+* As a "server" NETIO waits for incoming connections and has in default the data partner role of "receiving data".
+* As a "client" NETIO just connects and has in default the data partner role of "sending data".
+
+The default data partner role can be changed with the "-ds" or "-dr" parameter.
+
+* "-ds" defines that this NETIO should send data, although it is a server with "-s" 
+* "-dr" defines that this NETIO should receive data, although it is a client with "-c"
+
+## Differences in data transmmission between network and serial
+With a network connection the end of data transmission can be recognized either by a EOF data or network disconnection.
+
+On serial connections there is no EOF and no disconnection.
+If you send data to a serial port then this data is either consumed (by a connected other serial port) or just vanishes to the unknown.
+
+In order to recognize a data transmission there must be a timeout elapsing after the last byte 
+By that the consuming partner recognized the end of transmission.
+
+For the sending partner the parameter "-ls" defines the time to sleep between two transmissons. 
+
+For the receiving partner the parameter "-lt" defines the timeout (where no data must be received) after which a transmission is recognized as to be completed.
+Each additional data receiving reset this timeout. 
+
+Parameter "-ls" must always be greater as parameter -lt"  
+
 ## TLS data encryption
 NETIO supports TLS data encryption by version TLS 1.0 - TLS 1.3.
 By setting "-tls" a self signed certificate is automaticaly generated for the server side.
@@ -197,59 +226,66 @@ Please substitute default filename parameters with the prefix "/home/ransom/go/s
 
 Parameter | Default value | Description
 ------------ | ------------- | -------------
-? | false | show usage                                                                               
-backup.count | 3 | amount of file backups                                                            
-bs | 32K | Block size in bytes                                                                       
-c |  | Client address/serial port                                                                    
-cfg.file | D:\go\src\netio\netio.json | Configuration file                                           
-cfg.reset | false | Reset configuration file                                                         
-cfg.timeout | 0 | rescan timeout for configuration change                                            
-dr | false | Act as data receiver                                                                    
-ds | false | Act as data sender                                                                      
-e |  | Expected hash                                                                                 
-f |  | Filename to write to (server) or read from (client)                                           
-h |  | Hash algorithm (md5, sha224, sha256)                                                          
-ht | 1000 | Sender sleep time after HELLO and before send start                                      
-language | en | language for messages                                                                
-lc | 1 | Loop count                                                                                  
-log.file |  | filename to log logFile (use "." for D:\go\src\netio\netio.log)                        
-log.filesize | 5242880 | max log file size                                                           
-log.io | false | trace logging                                                                       
-log.json | false | JSON output                                                                       
-log.verbose | false | verbose logging                                                                
-ls | 0 | Loop sleep between loop steps                                                               
-lt | 1000 | Loop timeout                                                                             
-nb | false | no copyright banner                                                                     
-r | false | Send random bytes (or '0' bytes)                                                         
-rt | 0 | Read throttled bytes/sec                                                                    
-s |  | Server address/serial port                                                                    
-st | 1000 | Serial read timeout for disconnect                                                       
-tls | false | Use TLS                                                                                
-tls.info | false | Show TLS info                                                                     
-tls.insecure | false | Use insecure TLS versions and ciphersuites                                    
-tls.p12 |  | TLS PKCS12 certificates & privkey container stream (P12,Base64 format)                  
-tls.p12file |  | TLS PKCS12 certificates & privkey container file (P12 format)                       
-tls.verify | false | TLS verification verification                                                   
-wt | 0 | Write throttled bytes/sec                                                                   
+? | false | show usage
+backup.count | 3 | amount of file backups
+bs | 32K | Buffer size in bytes
+c |  | Client address/serial port
+cfg.file | /home/ransom/go/src/netio/netio.json | Configuration file
+cfg.reset | false | Reset configuration file
+dr | false | Act as data receiver
+ds | false | Act as data sender
+e |  | Expected hash (multiple values with ,)
+f |  | Filename to write to (server) or read from (client) (multiple values with ,)
+h | md5 | Hash algorithm (md5, sha224, sha256)
+language | en | language for messages
+lc | 1 | Loop count
+log.file |  | filename to log logFile (use "." for /home/ransom/go/src/netio/netio.log)
+log.filesize | 5242880 | max log file size
+log.io | false | trace logging
+log.json | false | JSON output
+log.verbose | false | verbose logging
+ls | 1000 | Loop sleep between loop steps
+lt | 1000 | Loop timeout
+nb | false | no copyright banner
+r | false | Send random bytes (or '0' bytes)
+rs | 1000 | Sender sleep time before send READY
+rt | 0 | Read throttled bytes/sec
+s |  | Server address/serial port
+tls | false | Use TLS
+tls.insecure | false | Use insecure TLS versions and ciphersuites
+tls.p12 |  | TLS PKCS12 certificates & privkey container stream (P12,Base64 format)
+tls.p12file |  | TLS PKCS12 certificates & privkey container file (P12 format)
+tls.verify | false | TLS verification verification
+wt | 0 | Write throttled bytes/sec
 
 ## Samples
 
 Here some usage samples.
+It is assumed that /dev/ttyUSB0 and /dev/ttyUSB1 are connected with a serial cable.
+Client and Server can run on the same machine or different machines.
+The samples are showing the both commands which must be executed. 
 
-    # start NETIO as server on Port 15000 with TLS
+    # server listens on Port 15000 with TLS
+    # client connects and send for 1 sec zero value data
     netio -s :15000 -tls
+    netio -c :15000 -tls
     
-    # start client on COM3 with 9600 Baud, 8 Databist, no parity, 1 Stopbit and transfer the file "testfile.txt"
-    netio -c COM3,9600,8,N,1 -f testfile.txt
-    
-    # server listens on COM3, send zero bytes and calculates transfered bytes with MD5 hash algorithm 
-    netio -s COM3 -h md5
-    
-    # client sends on COM4, send random bytes and calculates transfered bytes with MD5 hash algorithm 
-    netio -c COM4 -h md5 -r 
+    # server listens on port /dev/ttyUSB0,115200
+    # client connects on Port /dev/ttyUSB0,115200 connects and send for 1 sec random value data
+    netio -s /dev/ttyUSB0,115200 
+    netio -c /dev/ttyUSB1,115200 -r 
 
-    # server uses COM4 with 115200 baud, act as data sender, wait on HELLO handshake from client, send the file content of test.data and calculates transfered bytes with MD5 hash algorithm 
-    netio -s COM4,115200 -ds -h md5 -f test.data
-
-    # client uses COM3 with 115200 baud, act as data receiver, send HELLO handshake, calculates received bytes with MD5 hash algorithm and compares to hash digest 2b4f7577f92d982fafb6d9978f08675a 
-    netio -c COM3,115200 -dr -h md5 -e 2b4f7577f92d982fafb6d9978f08675a 
+    # server listens on port /dev/ttyUSB0,115200,8,N,1 waits for incoming connection and verifies with hash value 3fc8eaba542609681ac900797e67ac98
+    # client connects on port /dev/ttyUSB1,115200,8,N,1 and sends the file "testfile.txt"
+    netio -s /dev/ttyUSB0,115200,8,N,1 -e 3fc8eaba542609681ac900797e67ac98 
+    netio -c /dev/ttyUSB1,115200,8,N,1 -f testfile.txt
+    
+    # server listens on port /dev/ttyUSB0,115200,8,N,1 waits for incoming connection and verifies with hash value 3fc8eaba542609681ac900797e67ac98, loop forever
+    # client connects on port /dev/ttyUSB1,115200,8,N,1 and sends the file "testfile.txt" 5 times and sleeps 2000 msec to give server the time to recognize transmisson chunk
+    netio -s /dev/ttyUSB0,115200 -lc 0 -e 3fc8eaba542609681ac900797e67ac98
+    netio -c /dev/ttyUSB1,115200 -f testfile.txt -lc 5 -ls 2000
+    
+    # server listens on port /dev/ttyUSB0,115200,8,N,1 waits for incoming connectionand sends the file "testfile.txt" 5 times and sleeps 2000 msec to give client the time to recognize transmisson chunk 
+    # client connects on port /dev/ttyUSB1,115200,8,N,1 and verifies with hash value 3fc8eaba542609681ac900797e67ac98, loops forever 
+    netio -s /dev/ttyUSB0,115200 -ds -f testfile.txt -lc 5 -ls 2000
+    netio -c /dev/ttyUSB1,115200 -dr -lc 0 -rs 3000 -e 3fc8eaba542609681ac900797e67ac98
