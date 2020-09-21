@@ -1,9 +1,10 @@
-# NETIO documentation v1.0.0
+# NETIO documentation v1.0.1
 
 ## Document Version
 Version | Date | Author | Description
 ------------ | ------------ | ------------- | -------------
 1.0.0 | 15.09.2020 | mpetavy | Initial release
+1.0.1 | 21.09.2020 | mpetavy | Added more samples. connection role, data role
 
 ## Description
 NETIO is a performance testing tool for network or serial connections.
@@ -34,15 +35,15 @@ The server can be configured to verify the hash digest with a defined value (-e)
 With that data throughput performance can be measured.
 * If a file content for transmission is provided then each loop step transfers the data whithout limitation
 
-## Connection roles and data partner roles
+## Connection roles and data roles
 With two NETIO there must always be a "client" and a "server" to communicate.
 
 NETIO can be starter in "client" (-c) or "server" (-s) connection role.
 
-* As a "server" NETIO waits for incoming connections and has in default the data partner role of "receiving data".
-* As a "client" NETIO just connects and has in default the data partner role of "sending data".
+* As a "server" NETIO waits for incoming connections and has in default the data role of "receiving data".
+* As a "client" NETIO just connects and has in default the data role of "sending data".
 
-The default data partner role can be changed with the "-ds" or "-dr" parameter.
+The default data role can be changed with the "-ds" or "-dr" parameter.
 
 * "-ds" defines that this NETIO should send data, although it is a server with "-s" 
 * "-dr" defines that this NETIO should receive data, although it is a client with "-c"
