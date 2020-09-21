@@ -10,7 +10,7 @@ if [ -z "$TEAMCITY_VERSION" ]; then
   export LDFLAG_DEVELOPER=mpetavy
   export LDFLAG_HOMEPAGE=https://github.com/mpetavy/netio
   export LDFLAG_LICENSE=https://www.apache.org/licenses/LICENSE-2.0.html
-  export LDFLAG_VERSION=1.0.0
+  export LDFLAG_VERSION=1.0.1
   export LDFLAG_EXPIRE=
   export LDFLAG_GIT=%msg%
   export LDFLAG_COUNTER=1
