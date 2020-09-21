@@ -22,18 +22,21 @@ import (
 // -s /dev/ttyUSB0,115200 -ds -f README.md -lc 5 -ls 2000
 // -c /dev/ttyUSB1,115200 -dr -lc 0 -rs 3000 -e fc7fa95c5659ccdf5aad8c883916a854
 
+// -s /dev/ttyUSB0,115200 -lc 0
+// -c /dev/ttyUSB1,115200 -lc 5 -ls 2000 -r
+
 var (
 	LDFLAG_DEVELOPER = "mpetavy"                          // will be replaced with ldflag
 	LDFLAG_HOMEPAGE  = "https://github.com/mpetavy/netio" // will be replaced with ldflag
 	LDFLAG_LICENSE   = common.APACHE                      // will be replaced with ldflag
-	LDFLAG_VERSION   = "1.0.0"                            // will be replaced with ldflag
+	LDFLAG_VERSION   = "1.0.1"                            // will be replaced with ldflag
 	LDFLAG_EXPIRE    = ""                                 // will be replaced with ldflag
 	LDFLAG_GIT       = ""                                 // will be replaced with ldflag
 	LDFLAG_COUNTER   = "9999"                             // will be replaced with ldflag
 
 	client              *string
 	server              *string
-	filename            *string
+	filenames           common.MultiValueFlag
 	useTls              *bool
 	useTlsVerify        *bool
 	isDataSender        *bool
@@ -45,7 +48,7 @@ var (
 	loopTimeout         *int
 	readySleep          *int
 	hashAlg             *string
-	hashExpected        *string
+	hashExpected        common.MultiValueFlag
 	randomBytes         *bool
 	loopSleep           *int
 	bufferSize          int64
@@ -55,7 +58,8 @@ var (
 	isClient       bool
 	device         string
 	isSerialDevice bool
-	hashError      int
+	verifyCount    int
+	verifyError    int
 )
 
 const (
@@ -63,17 +67,17 @@ const (
 )
 
 func init() {
-	common.Init(false, LDFLAG_VERSION, "2019", "network/serial performance testing tool", LDFLAG_DEVELOPER, LDFLAG_HOMEPAGE, LDFLAG_LICENSE, nil, nil, run1, 0)
+	common.Init(false, LDFLAG_VERSION, "2019", "network/serial performance testing tool", LDFLAG_DEVELOPER, LDFLAG_HOMEPAGE, LDFLAG_LICENSE, nil, stop, run, 0)
 
 	client = flag.String("c", "", "Client address/serial port")
 	server = flag.String("s", "", "Server address/serial port")
-	filename = flag.String("f", "", "Filename to write to (server) or read from (client)")
+	flag.Var(&filenames, "f", "Filename to write to (server) or read from (client) (multiple values with ,)")
 	useTls = flag.Bool("tls", false, "Use TLS")
 	useTlsVerify = flag.Bool("tls.verify", false, "TLS verification verification")
 	isDataSender = flag.Bool("ds", false, "Act as data sender")
 	isDataReceiver = flag.Bool("dr", false, "Act as data receiver")
 	hashAlg = flag.String("h", "md5", "Hash algorithm (md5, sha224, sha256)")
-	hashExpected = flag.String("e", "", "Expected hash")
+	flag.Var(&hashExpected, "e", "Expected hash (multiple values with ,)")
 	randomBytes = flag.Bool("r", false, "Send random bytes (or '0' bytes)")
 	bufferSizeString = flag.String("bs", "32K", "Buffer size in bytes")
 	readThrottleString = flag.String("rt", "0", "Read throttled bytes/sec")
@@ -115,20 +119,20 @@ func initialize() error {
 		common.Info("WRITE throttle bytes/sec: %s = %d Bytes", *writeThrottleString, writeThrottle)
 	}
 
-	if *filename != "" {
+	for _, filename := range filenames {
 		if mustSendData() {
-			b, _ := common.FileExists(*filename)
+			b, _ := common.FileExists(filename)
 
 			if !b {
-				return &common.ErrFileNotFound{FileName: *filename}
+				return common.ErrorReturn(&common.ErrFileNotFound{FileName: filename})
 			}
 		}
 
 		if mustReceiveData() {
-			b, _ := common.FileExists(*filename)
+			b, _ := common.FileExists(filename)
 
 			if b {
-				return fmt.Errorf("file already exists: %s", *filename)
+				return common.ErrorReturn(fmt.Errorf("file already exists: %s", filename))
 			}
 		}
 	}
@@ -161,21 +165,24 @@ func openHasher() (hash.Hash, error) {
 	return hasher, nil
 }
 
-func closeHasher(hasher hash.Hash) {
+func closeHasher(loop int, hasher hash.Hash) {
 	if hasher != nil {
 		hashCalculated := fmt.Sprintf("%x", hasher.Sum(nil))
 
 		common.Info("%s hash: %s", strings.ToUpper(*hashAlg), hashCalculated)
 
-		if *hashExpected != "" {
-			common.Info("%s expect: %s", strings.ToUpper(*hashAlg), *hashExpected)
+		if len(hashExpected) > 0 {
+			verifyCount++
+			expected := hashExpected[loop%len(hashExpected)]
 
-			if *hashExpected != hashCalculated {
-				hashError++
+			common.Info("%s expect: %s", strings.ToUpper(*hashAlg), expected)
 
-				common.Info("%s hash error #%d", strings.ToUpper(*hashAlg), hashError)
+			if expected != hashCalculated {
+				verifyError++
+
+				common.Info("Hash Error #%d", verifyError)
 			} else {
-				common.Info("%s hash correct", strings.ToUpper(*hashAlg))
+				common.Info("Hash Correct!")
 			}
 		}
 
@@ -229,7 +236,7 @@ func sendReady(connection endpoint.Connection) error {
 	return nil
 }
 
-func readData(reader io.Reader) (hash.Hash, int64, time.Duration, error) {
+func readData(loop int, reader io.Reader) (hash.Hash, int64, time.Duration, error) {
 	var writer io.Writer
 	var err error
 
@@ -238,14 +245,16 @@ func readData(reader io.Reader) (hash.Hash, int64, time.Duration, error) {
 		return nil, 0, 0, err
 	}
 
-	if *filename != "" {
-		b, _ := common.FileExists(*filename)
+	if len(filenames) > 0 {
+		filename := filenames[loop%len(filenames)]
+
+		b, _ := common.FileExists(filename)
 
 		if b {
-			return nil, 0, 0, fmt.Errorf("file already exists: %s", *filename)
+			return nil, 0, 0, fmt.Errorf("file already exists: %s", filename)
 		}
 
-		file, err := os.OpenFile(*filename, os.O_CREATE|os.O_APPEND|os.O_RDWR, os.ModePerm)
+		file, err := os.OpenFile(filename, os.O_CREATE|os.O_APPEND|os.O_RDWR, os.ModePerm)
 		if common.Error(err) {
 			return nil, 0, 0, err
 		}
@@ -274,7 +283,7 @@ func readData(reader io.Reader) (hash.Hash, int64, time.Duration, error) {
 	return hasher, n, time.Since(start), nil
 }
 
-func sendData(writer io.Writer) (hash.Hash, int64, time.Duration, error) {
+func sendData(loop int, writer io.Writer) (hash.Hash, int64, time.Duration, error) {
 	var reader io.Reader
 	var err error
 
@@ -283,8 +292,10 @@ func sendData(writer io.Writer) (hash.Hash, int64, time.Duration, error) {
 		return nil, 0, 0, err
 	}
 
-	if *filename != "" {
-		file, err := os.Open(*filename)
+	if len(filenames) > 0 {
+		filename := filenames[loop%len(filenames)]
+
+		file, err := os.Open(filename)
 		if err != nil {
 			return nil, 0, 0, err
 		}
@@ -295,12 +306,12 @@ func sendData(writer io.Writer) (hash.Hash, int64, time.Duration, error) {
 
 		reader = file
 
-		filesize, err := common.FileSize(*filename)
+		filesize, err := common.FileSize(filename)
 		if err != nil {
 			return nil, 0, 0, err
 		}
 
-		common.Info("Sending file content: %v %v bytes ...", *filename, filesize)
+		common.Info("Sending file content: %v %v bytes ...", filename, filesize)
 	} else {
 		if *randomBytes {
 			reader = common.NewRandomReader()
@@ -316,7 +327,7 @@ func sendData(writer io.Writer) (hash.Hash, int64, time.Duration, error) {
 	ba := make([]byte, bufferSize)
 	start := time.Now()
 
-	if *filename == "" && *loopTimeout > 0 {
+	if len(filenames) == 0 && *loopTimeout > 0 {
 		reader = common.NewDeadlineReader(reader, common.MillisecondToDuration(*loopTimeout))
 	}
 
@@ -328,7 +339,7 @@ func sendData(writer io.Writer) (hash.Hash, int64, time.Duration, error) {
 	return hasher, n, time.Since(start), nil
 }
 
-func work(ep endpoint.Endpoint) error {
+func work(loop int, ep endpoint.Endpoint) error {
 	connection, err := ep.GetConnection()
 	if common.Error(err) {
 		return err
@@ -355,14 +366,14 @@ func work(ep endpoint.Endpoint) error {
 		var hasher hash.Hash
 		var n int64
 
-		hasher, n, duration, err = sendData(connection)
+		hasher, n, duration, err = sendData(loop, connection)
 		if common.Error(err) {
 			return err
 		}
 
 		common.Info("Bytes sent: %v/%+v", common.FormatMemory(n), duration)
 
-		closeHasher(hasher)
+		closeHasher(loop, hasher)
 	}
 
 	if mustReceiveData() {
@@ -377,14 +388,14 @@ func work(ep endpoint.Endpoint) error {
 		var hasher hash.Hash
 		var n int64
 
-		hasher, n, duration, err = readData(connection)
+		hasher, n, duration, err = readData(loop, connection)
 		if common.Error(err) {
 			return err
 		}
 
 		common.Info("Bytes read: %v/%+v", common.FormatMemory(n), duration)
 
-		closeHasher(hasher)
+		closeHasher(loop, hasher)
 	}
 
 	common.DebugError(connection.Close())
@@ -398,7 +409,7 @@ func work(ep endpoint.Endpoint) error {
 	return nil
 }
 
-func run1() error {
+func run() error {
 	err := initialize()
 	if common.Error(err) {
 		return err
@@ -449,12 +460,24 @@ func run1() error {
 			common.Info("Loop #%v", loop)
 		}
 
-		err = work(ep)
+		err = work(loop, ep)
 		if common.Error(err) {
 			return err
 		}
 
 		common.Info("")
+	}
+
+	return nil
+}
+
+func stop() error {
+	if len(hashExpected) > 0 {
+		common.Info("")
+		common.Info("--- Summary ------------------------")
+		common.Info("Amount:  %d", verifyCount)
+		common.Info("Correct: %d", verifyCount-verifyError)
+		common.Info("Errors:  %d", verifyError)
 	}
 
 	return nil
