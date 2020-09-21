@@ -16,8 +16,11 @@ import (
 	"github.com/mpetavy/common"
 )
 
-// -s /dev/ttyUSB0,115200 -lc 0
-// -c /dev/ttyUSB1,115200 -f test -lc 5 -ls 2000
+// -s /dev/ttyUSB0,115200 -lc 0 -e fc7fa95c5659ccdf5aad8c883916a854
+// -c /dev/ttyUSB1,115200 -f README.md -lc 5 -ls 2000
+
+// -s /dev/ttyUSB0,115200 -ds -f README.md -lc 5 -ls 2000
+// -c /dev/ttyUSB1,115200 -dr -lc 0 -rs 3000 -e fc7fa95c5659ccdf5aad8c883916a854
 
 var (
 	LDFLAG_DEVELOPER = "mpetavy"                          // will be replaced with ldflag
@@ -40,7 +43,7 @@ var (
 	writeThrottleString *string
 	loopCount           *int
 	loopTimeout         *int
-	readyTimeout        *int
+	readySleep          *int
 	hashAlg             *string
 	hashExpected        *string
 	randomBytes         *bool
@@ -78,7 +81,7 @@ func init() {
 	loopCount = flag.Int("lc", 1, "Loop count")
 	loopTimeout = flag.Int("lt", common.DurationToMillisecond(time.Second), "Loop timeout")
 	loopSleep = flag.Int("ls", common.DurationToMillisecond(time.Second), "Loop sleep between loop steps")
-	readyTimeout = flag.Int("ht", common.DurationToMillisecond(time.Second), "Sender sleep time after HELLO and before send start")
+	readySleep = flag.Int("rs", common.DurationToMillisecond(time.Second), "Sender sleep time before send READY")
 }
 
 func initialize() error {
@@ -113,7 +116,7 @@ func initialize() error {
 	}
 
 	if *filename != "" {
-		if *isDataSender || (*client != "" && !*isDataReceiver) {
+		if mustSendData() {
 			b, _ := common.FileExists(*filename)
 
 			if !b {
@@ -121,7 +124,7 @@ func initialize() error {
 			}
 		}
 
-		if *isDataReceiver || (*server != "" && !*isDataSender) {
+		if mustReceiveData() {
 			b, _ := common.FileExists(*filename)
 
 			if b {
@@ -130,10 +133,15 @@ func initialize() error {
 		}
 	}
 
-	*isDataSender = *client != "" || *isDataSender
-	*isDataReceiver = *server != "" || *isDataReceiver
-
 	return nil
+}
+
+func mustSendData() bool {
+	return *isDataSender || (*client != "" && !*isDataReceiver)
+}
+
+func mustReceiveData() bool {
+	return *isDataReceiver || (*server != "" && !*isDataSender)
 }
 
 func openHasher() (hash.Hash, error) {
@@ -183,7 +191,7 @@ func waitForReady(connection endpoint.Connection) error {
 	received := ""
 	ba := make([]byte, len(READY))
 
-	common.Info("Waiting for HELLO...")
+	common.Info("Waiting for READY...")
 
 	for {
 		n, err := connection.Read(ba)
@@ -195,7 +203,7 @@ func waitForReady(connection endpoint.Connection) error {
 			received = received + string(ba[:n])
 
 			if strings.HasSuffix(received, READY) {
-				common.Info("Received HELLO")
+				common.Info("Received READY")
 
 				break
 			}
@@ -206,7 +214,13 @@ func waitForReady(connection endpoint.Connection) error {
 }
 
 func sendReady(connection endpoint.Connection) error {
-	common.Info("Sending HELLO")
+	if *readySleep > 0 {
+		common.Info("Ready sleep: %v", common.MillisecondToDuration(*readySleep))
+
+		time.Sleep(common.MillisecondToDuration(*readySleep))
+	}
+
+	common.Info("Sending READY")
 	_, err := io.Copy(connection, strings.NewReader(READY))
 	if common.Error(err) {
 		return err
@@ -329,7 +343,14 @@ func work(ep endpoint.Endpoint) error {
 		common.DebugError(connection.Close())
 	}()
 
-	if *isDataSender {
+	if mustSendData() {
+		if *server != "" {
+			err := waitForReady(connection)
+			if common.Error(err) {
+				return err
+			}
+		}
+
 		var duration time.Duration
 		var hasher hash.Hash
 		var n int64
@@ -344,7 +365,14 @@ func work(ep endpoint.Endpoint) error {
 		closeHasher(hasher)
 	}
 
-	if *isDataReceiver {
+	if mustReceiveData() {
+		if *client != "" {
+			err := sendReady(connection)
+			if common.Error(err) {
+				return err
+			}
+		}
+
 		var duration time.Duration
 		var hasher hash.Hash
 		var n int64
@@ -361,7 +389,7 @@ func work(ep endpoint.Endpoint) error {
 
 	common.DebugError(connection.Close())
 
-	if *isDataSender && *loopCount > 1 && *loopSleep > 0 {
+	if mustSendData() && *loopCount > 1 && *loopSleep > 0 {
 		common.Info("Loop sleep: %v", common.MillisecondToDuration(*loopSleep))
 
 		time.Sleep(common.MillisecondToDuration(*loopSleep))
