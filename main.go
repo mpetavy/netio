@@ -361,6 +361,12 @@ func work(ep endpoint.Endpoint) error {
 
 	common.DebugError(connection.Close())
 
+	if *isDataSender && *loopCount > 1 && *loopSleep > 0 {
+		common.Info("Loop sleep: %v", common.MillisecondToDuration(*loopSleep))
+
+		time.Sleep(common.MillisecondToDuration(*loopSleep))
+	}
+
 	return nil
 }
 
@@ -418,12 +424,6 @@ func run1() error {
 		err = work(ep)
 		if common.Error(err) {
 			return err
-		}
-
-		if *isDataSender && *loopCount > 1 && *loopSleep > 0 {
-			common.Info("Loop sleep: %v", common.MillisecondToDuration(*loopSleep))
-
-			time.Sleep(common.MillisecondToDuration(*loopSleep))
 		}
 
 		common.Info("")
