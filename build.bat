@@ -11,7 +11,7 @@ if [%GO_VERSION%] == [] (
 set LDFLAG_DEVELOPER=mpetavy
 set LDFLAG_HOMEPAGE=https://github.com/mpetavy/netio
 set LDFLAG_LICENSE=https://www.apache.org/licenses/LICENSE-2.0.html
-set LDFLAG_VERSION=1.0.0
+set LDFLAG_VERSION=1.0.1
 set LDFLAG_EXPIRE=
 set LDFLAG_GIT=%msg%
 set LDFLAG_COUNTER=1
