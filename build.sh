@@ -30,7 +30,11 @@ if [ ! -z "$(docker images -q netio-builder)" ]; then
   docker image rm -f netio-builder
 fi
 
+git log --pretty=format:"%h | %ai | %s %d [%an]" > CHANGES.txt
+
 docker image build -t netio-builder --target builder --build-arg DOCKER_IMAGE="$DOCKER_IMAGE" --build-arg LDFLAG_DEVELOPER="$LDFLAG_DEVELOPER" --build-arg LDFLAG_HOMEPAGE="$LDFLAG_HOMEPAGE" --build-arg LDFLAG_LICENSE="$LDFLAG_LICENSE" --build-arg LDFLAG_VERSION="$LDFLAG_VERSION" --build-arg LDFLAG_EXPIRE="$LDFLAG_EXPIRE" --build-arg LDFLAG_GIT="$LDFLAG_GIT" --build-arg LDFLAG_COUNTER="$LDFLAG_COUNTER" .
+
+rm CHANGES.txt
 
 docker create --name netio-builder netio-builder
 
