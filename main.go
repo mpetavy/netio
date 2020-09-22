@@ -67,7 +67,7 @@ const (
 )
 
 func init() {
-	common.Init(false, LDFLAG_VERSION, "2019", "network/serial performance testing tool", LDFLAG_DEVELOPER, LDFLAG_HOMEPAGE, LDFLAG_LICENSE, nil, stop, run, 0)
+	common.Init(true, LDFLAG_VERSION, "2019", "network/serial performance testing tool", LDFLAG_DEVELOPER, LDFLAG_HOMEPAGE, LDFLAG_LICENSE, start, stop, run, 0)
 
 	client = flag.String("c", "", "Client address/serial port")
 	server = flag.String("s", "", "Server address/serial port")
@@ -86,58 +86,6 @@ func init() {
 	loopTimeout = flag.Int("lt", common.DurationToMillisecond(time.Second), "Loop timeout")
 	loopSleep = flag.Int("ls", common.DurationToMillisecond(time.Second), "Loop sleep between loop steps")
 	readySleep = flag.Int("rs", common.DurationToMillisecond(time.Second), "Sender sleep time before send READY")
-}
-
-func initialize() error {
-	var err error
-
-	bufferSize, err = common.ParseMemory(*bufferSizeString)
-	if common.Error(err) {
-		return err
-	}
-
-	if isSerialPortOptions(*server) || isSerialPortOptions(*client) {
-		bufferSize = int64(common.Min(1024, int(bufferSize)))
-	}
-
-	common.Info("Buffer size: %s", common.FormatMemory(bufferSize))
-
-	readThrottle, err = common.ParseMemory(*readThrottleString)
-	if common.Error(err) {
-		return err
-	}
-
-	writeThrottle, err = common.ParseMemory(*writeThrottleString)
-	if common.Error(err) {
-		return err
-	}
-
-	if readThrottle > 0 {
-		common.Info("READ throttle bytes/sec: %s = %d Bytes", *readThrottleString, readThrottle)
-	}
-	if writeThrottle > 0 {
-		common.Info("WRITE throttle bytes/sec: %s = %d Bytes", *writeThrottleString, writeThrottle)
-	}
-
-	for _, filename := range filenames {
-		if mustSendData() {
-			b, _ := common.FileExists(filename)
-
-			if !b {
-				return common.ErrorReturn(&common.ErrFileNotFound{FileName: filename})
-			}
-		}
-
-		if mustReceiveData() {
-			b, _ := common.FileExists(filename)
-
-			if b {
-				return common.ErrorReturn(fmt.Errorf("file already exists: %s", filename))
-			}
-		}
-	}
-
-	return nil
 }
 
 func mustSendData() bool {
@@ -409,12 +357,65 @@ func work(loop int, ep endpoint.Endpoint) error {
 	return nil
 }
 
-func run() error {
-	err := initialize()
+func start() error {
+	var err error
+
+	bufferSize, err = common.ParseMemory(*bufferSizeString)
 	if common.Error(err) {
 		return err
 	}
 
+	if isSerialPortOptions(*server) || isSerialPortOptions(*client) {
+		bufferSize = int64(common.Min(1024, int(bufferSize)))
+	}
+
+	common.Info("Buffer size: %s", common.FormatMemory(bufferSize))
+
+	readThrottle, err = common.ParseMemory(*readThrottleString)
+	if common.Error(err) {
+		return err
+	}
+
+	writeThrottle, err = common.ParseMemory(*writeThrottleString)
+	if common.Error(err) {
+		return err
+	}
+
+	if readThrottle > 0 {
+		common.Info("READ throttle bytes/sec: %s = %d Bytes", *readThrottleString, readThrottle)
+	}
+	if writeThrottle > 0 {
+		common.Info("WRITE throttle bytes/sec: %s = %d Bytes", *writeThrottleString, writeThrottle)
+	}
+
+	for _, filename := range filenames {
+		if mustSendData() {
+			b, _ := common.FileExists(filename)
+
+			if !b {
+				return common.ErrorReturn(&common.ErrFileNotFound{FileName: filename})
+			}
+		}
+
+		if mustReceiveData() {
+			b, _ := common.FileExists(filename)
+
+			if b {
+				return common.ErrorReturn(fmt.Errorf("file already exists: %s", filename))
+			}
+		}
+	}
+
+	if common.IsRunningAsService() {
+		common.Info("Running as server -> looping forever")
+
+		*loopCount = 0
+	}
+
+	return nil
+}
+
+func run() error {
 	isClient = *client != ""
 
 	if isClient {
@@ -425,6 +426,7 @@ func run() error {
 
 	isSerialDevice = isSerialPortOptions(device)
 
+	var err error
 	var ep endpoint.Endpoint
 
 	if isSerialDevice {
