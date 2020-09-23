@@ -8,6 +8,7 @@ import (
 	"hash"
 	"io"
 	"io/ioutil"
+	"math"
 	"netio/endpoint"
 	"os"
 	"strings"
@@ -312,6 +313,9 @@ func work(loop int, ep endpoint.Endpoint) error {
 			return err
 		}
 
+		n = int64(math.Round(float64(n) / float64(duration.Seconds())))
+		duration = time.Second
+
 		common.Info("Bytes sent: %v/%+v", common.FormatMemory(n), duration)
 
 		closeHasher(loop, hasher)
@@ -333,6 +337,9 @@ func work(loop int, ep endpoint.Endpoint) error {
 		if common.Error(err) {
 			return err
 		}
+
+		n = int64(math.Round(float64(n) / float64(duration.Seconds())))
+		duration = time.Second
 
 		common.Info("Bytes read: %v/%+v", common.FormatMemory(n), duration)
 
