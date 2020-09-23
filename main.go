@@ -76,7 +76,7 @@ func init() {
 	flag.Var(&hashExpected, "e", "Expected hash value(s)")
 	randomBytes = flag.Bool("r", false, "Send random bytes (or '0' bytes)")
 	bufferSizeString = flag.String("bs", "32K", "Buffer size in bytes")
-	loopCount = flag.Int("lc", 1, "Loop count")
+	loopCount = flag.Int("lc", 0, "Loop count")
 	loopTimeout = flag.Int("lt", 0, "Loop timeout")
 	loopSleep = flag.Int("ls", 0, "Loop sleep between loop steps")
 	readySleep = flag.Int("rs", common.DurationToMillisecond(time.Second), "Sender sleep time before send READY")
@@ -381,6 +381,14 @@ func start() error {
 
 		if *loopSleep == 0 {
 			*loopSleep = 2000
+		}
+	}
+
+	if *loopCount == 0 {
+		if len(filenames) > 0 {
+			*loopCount = len(filenames)
+		} else {
+			*loopCount = 1
 		}
 	}
 
