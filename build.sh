@@ -36,7 +36,7 @@ if [ ! -z "$(docker images -q $APP)" ]; then
 fi
 
 if [ ! -z "$(docker ps -a | grep -i $APP)" ]; then
-  docker container rm $APP
+  docker container rm -f $APP
 fi
 
 git log --pretty=format:"%h | %ai | %s %d [%an]" > CHANGES.txt
@@ -57,34 +57,38 @@ if [ ! -z "$TEAMCITY_VERSION" ]; then
   curl --noproxy "*" -u "$ARTIFACTORY_USERNAME:$ARTIFACTORY_PASSWORD" -H "Content-Type: application/octet-stream" -X PUT "http://artifactory-medmuc:8084/artifactory/$APP-release-local/$LDFLAG_VERSION/$APP-$LDFLAG_VERSION-$LDFLAG_COUNTER-linux-arm6.tar.gz" -T $APP-$LDFLAG_VERSION-$LDFLAG_COUNTER-linux-arm6.tar.gz
 fi
 
-docker cp $APP:/go/src/$APP/dist-linux-amd64/$APP /tmp
+if [ -e "$1"  ] || [ "$OS" == "Windows_NT" ]; then
+  echo WARNING! No LXC container is created!
+else
+  docker cp $APP:/go/src/$APP/dist-linux-amd64/$APP /tmp
 
-if [ ! -z "$(lxc list | grep -i $APP)" ]; then
-  lxc delete $APP --force
+  if [ ! -z "$(lxc list | grep -i $APP)" ]; then
+    lxc delete $APP --force
+  fi
+
+  lxc launch images:debian/10 $APP
+  lxc file push /tmp/$APP $APP/root/
+  lxc exec $APP -- /root/$APP $SVC_CMD
+  lxc exec $APP -- systemctl enable $APP.service
+  lxc exec $APP -- systemctl start $APP.service
+
+  # LXD/LXC Version 3
+
+  lxc snapshot $APP snapshot
+  lxc publish $APP/snapshot --alias $APP-snapshot
+  lxc image export $APP-snapshot .
+  lxc image delete $APP-snapshot
+
+  mv $(ls -t | head -n1) $APP-$LDFLAG_VERSION-$LDFLAG_COUNTER-lxc.tar.gz
+
+  # LXD/LXC Version 4
+
+  # lxc export $APP $APP-$LDFLAG_VERSION-$LDFLAG_COUNTER-lxc.tar.gz --instance-only
+
+  if [ ! -z "$TEAMCITY_VERSION" ]; then
+    curl --noproxy "*" -u "$ARTIFACTORY_USERNAME:$ARTIFACTORY_PASSWORD" -H "Content-Type: application/octet-stream" -X PUT "http://artifactory-medmuc:8084/artifactory/$APP-release-local/$LDFLAG_VERSION/$APP-$LDFLAG_VERSION-$LDFLAG_COUNTER-lxc.tar.gz" -T $APP-$LDFLAG_VERSION-$LDFLAG_COUNTER-lxc.tar.gz
+  fi
+
+  docker container rm -f $APP
+  docker image rm -f $APP
 fi
-
-lxc launch images:debian/10 $APP
-lxc file push /tmp/$APP $APP/root/
-lxc exec $APP -- /root/$APP $SVC_CMD
-lxc exec $APP -- systemctl enable $APP.service
-lxc exec $APP -- systemctl start $APP.service
-
-# LXD/LXC Version 3
-
-lxc snapshot $APP snapshot
-lxc publish $APP/snapshot --alias $APP-snapshot
-lxc image export $APP-snapshot .
-lxc image delete $APP-snapshot
-
-mv $(ls -t | head -n1) $APP-$LDFLAG_VERSION-$LDFLAG_COUNTER-lxc.tar.gz
-
-# LXD/LXC Version 4
-
-# lxc export $APP $APP-$LDFLAG_VERSION-$LDFLAG_COUNTER-lxc.tar.gz --instance-only
-
-if [ ! -z "$TEAMCITY_VERSION" ]; then
-  curl --noproxy "*" -u "$ARTIFACTORY_USERNAME:$ARTIFACTORY_PASSWORD" -H "Content-Type: application/octet-stream" -X PUT "http://artifactory-medmuc:8084/artifactory/$APP-release-local/$LDFLAG_VERSION/$APP-$LDFLAG_VERSION-$LDFLAG_COUNTER-lxc.tar.gz" -T $APP-$LDFLAG_VERSION-$LDFLAG_COUNTER-lxc.tar.gz
-fi
-
-docker container rm -f $APP
-docker image rm -f $APP

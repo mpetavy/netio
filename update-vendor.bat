@@ -3,7 +3,7 @@ cls
 
 banner update-vendor
 
-echo This updates the vendor directory and creates also the verndor.tar.gz file
+echo This updates the vendor directory and creates also the vendor.tar.gz file
 
 pause
 

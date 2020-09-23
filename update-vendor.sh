@@ -1,7 +1,7 @@
 #!/bin/sh
 banner update-vendor
 
-echo This updates the vendor directory and creates also the verndor.tar.gz file
+echo This updates the vendor directory and creates also the vendor.tar.gz file
 
 [ -d "./vendor" ] && rm -rf vendor
 [ -f "./vendor.tar.gz" ] && rm vendor.tar.gz
