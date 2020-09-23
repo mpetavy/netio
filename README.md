@@ -15,25 +15,22 @@ The following feature set is supported:
 * Looping rounds with timeout or file transfer
 * MD5, SHA224 or SHA256 Hash digest calculation and verification
 
-To test data transmission there must be two NETO sessions running.
+To test data transfer there must be two NETO sessions running.
+
+Both the client and server calculate on their own a hash digest of the sent and received data.
+
+The data receiving endpoint can be configured to verify the hash digest with a defined value (-e).
 
 * A client (-c) and a server (-s).
-
-* The client connects and sends data to the server.
-
-* Data can be zero bytes (default), random bytes (-r) or the content of a file (-f).
-Both the client and server calculate on their own a hash digest of the sent and received data.
-The server can be configured to verify the hash digest with a defined value (-e).
-
-* If there is the need that still the client connects to the server, but data transmission must be done from the server to the client then the server can be decorated as data sender (-ds) and the client can be decorated as data receiver "-dr".
-
-* If the received data can be dumped to a file (-f).
-
-* In default the data transmission is done in a loop.
+* In default the client connects to the server and send data
+* By using "-dr" and "-ds" the client still connects to the server but this time the server sends test data
+* Data can be zero bytes (default), random bytes (-r) or the content of a file(s) (-f).
+* The received data can be dumped to a file (-f).
+* The data receiving endpoint loops for connections forever
+* The data receiving endpoint can be breaked by CTRL and then gives a result of runs, correct and erroneous data transfers
 * The amount of loop steps in default is 1 (-lc).
-* If no file content for transmission is provided then each loop step is limited in default to 1 sec. (-lt)
-With that data throughput performance can be measured.
-* If a file content for transmission is provided then each loop step transfers the data whithout limitation
+* If no file content for transfer is provided then each loop step is limited in default to 1 sec. (-lt) Can produce different data transfers
+* If a file content for transfer is provided then each loop step transfers the data without limitations
 
 ## Connection roles and data roles
 With two NETIO there must always be a "client" and a "server" to communicate.
@@ -49,20 +46,21 @@ The default data role can be changed with the "-ds" or "-dr" parameter.
 * "-dr" defines that this NETIO should receive data, although it is a client with "-c"
 
 ## Differences in data transmmission between network and serial
-With a network connection the end of data transmission can be recognized either by a EOF data or network disconnection.
+With a network connection the end of data transfer can be recognized either by a EOF data or network disconnection.
 
-On serial connections there is no EOF and no disconnection.
-If you send data to a serial port then this data is either consumed (by a connected other serial port) or just vanishes to the unknown.
+If you send data via a serial port then this data is either consumed (by a connected other serial port) or just vanishes to the unknown.
 
-In order to recognize a data transmission there must be a timeout elapsing after the last byte 
-By that the consuming partner recognized the end of transmission.
+In order to recognize a chunk of daat going over a serial data transfer there must be a timeout elapsing after the last byte of the chunk. 
+By that the consuming partner recognized the end of transfer.
 
-For the sending partner the parameter "-ls" defines the time to sleep between two transmissons. 
+For the sending partner the parameter "-ls" defines the time to sleep between two transfers. 
 
-For the receiving partner the parameter "-lt" defines the timeout (where no data must be received) after which a transmission is recognized as to be completed.
+For the receiving partner the parameter "-lt" defines the timeout (where no data must be received) after which a transfer is recognized as to be completed.
 Each additional data receiving reset this timeout. 
 
-Parameter "-ls" must always be greater as parameter -lt"  
+Parameter "-ls" must always be greater as parameter -lt"
+
+if you leave the "-ls" and "-lt" parameter undefined then the correct values are automatically calculated depending on the current data role. 
 
 ## TLS data encryption
 NETIO supports TLS data encryption by version TLS 1.0 - TLS 1.3.
@@ -228,36 +226,34 @@ Please substitute default filename parameters with the prefix "/home/ransom/go/s
 Parameter | Default value | Description
 ------------ | ------------- | -------------
 ? | false | show usage
-backup.count | 3 | amount of file backups
+bak | 3 | amount of file backups
 bs | 32K | Buffer size in bytes
 c |  | Client address/serial port
-cfg.file | /home/ransom/go/src/netio/netio.json | Configuration file
+cfg.file | D:\go\src\netio\netio.json | Configuration file
 cfg.reset | false | Reset configuration file
 dr | false | Act as data receiver
 ds | false | Act as data sender
-e |  | Expected hash (multiple values with ,)
-f |  | Filename to write to (server) or read from (client) (multiple values with ,)
+e |  | Expected hash value(s)
+f |  | Filename(s) to write to (server) or read from (client)
 h | md5 | Hash algorithm (md5, sha224, sha256)
 language | en | language for messages
 lc | 1 | Loop count
-log.file |  | filename to log logFile (use "." for /home/ransom/go/src/netio/netio.log)
+log.file |  | filename to log logFile (use "." for D:\go\src\netio\netio.log)
 log.filesize | 5242880 | max log file size
 log.io | false | trace logging
 log.json | false | JSON output
 log.verbose | false | verbose logging
-ls | 1000 | Loop sleep between loop steps
-lt | 1000 | Loop timeout
+ls | 0 | Loop sleep between loop steps
+lt | 0 | Loop timeout
 nb | false | no copyright banner
 r | false | Send random bytes (or '0' bytes)
 rs | 1000 | Sender sleep time before send READY
-rt | 0 | Read throttled bytes/sec
 s |  | Server address/serial port
 tls | false | Use TLS
 tls.insecure | false | Use insecure TLS versions and ciphersuites
 tls.p12 |  | TLS PKCS12 certificates & privkey container stream (P12,Base64 format)
 tls.p12file |  | TLS PKCS12 certificates & privkey container file (P12 format)
-tls.verify | false | TLS verification verification
-wt | 0 | Write throttled bytes/sec
+tls.verify | false | TLS verification
 
 ## Samples
 
@@ -282,11 +278,11 @@ The samples are showing the both commands which must be executed.
     netio -c /dev/ttyUSB1,115200,8,N,1 -f testfile.txt
     
     # server listens on port /dev/ttyUSB0,115200,8,N,1 waits for incoming connection and verifies with hash value 3fc8eaba542609681ac900797e67ac98, loop forever
-    # client connects on port /dev/ttyUSB1,115200,8,N,1 and sends the file "testfile.txt" 5 times and sleeps 2000 msec to give server the time to recognize transmisson chunk
+    # client connects on port /dev/ttyUSB1,115200,8,N,1 and sends the file "testfile.txt" 5 times and sleeps 2000 msec to give server the time to recognize transfer chunk
     netio -s /dev/ttyUSB0,115200 -lc 0 -e 3fc8eaba542609681ac900797e67ac98
-    netio -c /dev/ttyUSB1,115200 -f testfile.txt -lc 5 -ls 2000
+    netio -c /dev/ttyUSB1,115200 -f testfile.txt -lc 5
     
-    # server listens on port /dev/ttyUSB0,115200,8,N,1 waits for incoming connectionand sends the file "testfile.txt" 5 times and sleeps 2000 msec to give client the time to recognize transmisson chunk 
+    # server listens on port /dev/ttyUSB0,115200,8,N,1 waits for incoming connection and sends the file "testfile.txt" 5 times and sleeps 2000 msec to give client the time to recognize transfer chunk 
     # client connects on port /dev/ttyUSB1,115200,8,N,1 and verifies with hash value 3fc8eaba542609681ac900797e67ac98, loops forever 
-    netio -s /dev/ttyUSB0,115200 -ds -f testfile.txt -lc 5 -ls 2000
+    netio -s /dev/ttyUSB0,115200 -ds -f testfile.txt -lc 5
     netio -c /dev/ttyUSB1,115200 -dr -lc 0 -rs 3000 -e 3fc8eaba542609681ac900797e67ac98
