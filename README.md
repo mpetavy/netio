@@ -237,7 +237,7 @@ e |  | Expected hash value(s)
 f |  | Filename(s) to write to (server) or read from (client)
 h | md5 | Hash algorithm (md5, sha224, sha256)
 language | en | language for messages
-lc | 1 | Loop count
+lc | 0 | Loop count
 log.file |  | filename to log logFile (use "." for D:\go\src\netio\netio.log)
 log.filesize | 5242880 | max log file size
 log.io | false | trace logging
