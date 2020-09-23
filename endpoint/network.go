@@ -173,7 +173,7 @@ func (networkServer *NetworkServer) Start() error {
 			return err
 		}
 	} else {
-		common.Info("Create TCP listener: %s...", networkServer.device)
+		common.Info("Create server listener: %s...", networkServer.device)
 
 		tcpAddr, err := net.ResolveTCPAddr("tcp", networkServer.device)
 		if common.Error(err) {

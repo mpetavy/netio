@@ -34,26 +34,22 @@ var (
 	LDFLAG_GIT       = ""                                 // will be replaced with ldflag
 	LDFLAG_COUNTER   = "9999"                             // will be replaced with ldflag
 
-	client              *string
-	server              *string
-	filenames           common.MultiValueFlag
-	useTls              *bool
-	useTlsVerify        *bool
-	isDataSender        *bool
-	isDataReceiver      *bool
-	bufferSizeString    *string
-	readThrottleString  *string
-	writeThrottleString *string
-	loopCount           *int
-	loopTimeout         *int
-	readySleep          *int
-	hashAlg             *string
-	hashExpected        common.MultiValueFlag
-	randomBytes         *bool
-	loopSleep           *int
-	bufferSize          int64
-	readThrottle        int64
-	writeThrottle       int64
+	client           *string
+	server           *string
+	filenames        common.MultiValueFlag
+	useTls           *bool
+	useTlsVerify     *bool
+	isDataSender     *bool
+	isDataReceiver   *bool
+	bufferSizeString *string
+	loopCount        *int
+	loopTimeout      *int
+	readySleep       *int
+	hashAlg          *string
+	hashExpected     common.MultiValueFlag
+	randomBytes      *bool
+	loopSleep        *int
+	bufferSize       int64
 
 	isClient       bool
 	device         string
@@ -71,20 +67,18 @@ func init() {
 
 	client = flag.String("c", "", "Client address/serial port")
 	server = flag.String("s", "", "Server address/serial port")
-	flag.Var(&filenames, "f", "Filename to write to (server) or read from (client) (multiple values with ,)")
+	flag.Var(&filenames, "f", "Filename(s) to write to (server) or read from (client)")
 	useTls = flag.Bool("tls", false, "Use TLS")
-	useTlsVerify = flag.Bool("tls.verify", false, "TLS verification verification")
+	useTlsVerify = flag.Bool("tls.verify", false, "TLS verification")
 	isDataSender = flag.Bool("ds", false, "Act as data sender")
 	isDataReceiver = flag.Bool("dr", false, "Act as data receiver")
 	hashAlg = flag.String("h", "md5", "Hash algorithm (md5, sha224, sha256)")
-	flag.Var(&hashExpected, "e", "Expected hash (multiple values with ,)")
+	flag.Var(&hashExpected, "e", "Expected hash value(s)")
 	randomBytes = flag.Bool("r", false, "Send random bytes (or '0' bytes)")
 	bufferSizeString = flag.String("bs", "32K", "Buffer size in bytes")
-	readThrottleString = flag.String("rt", "0", "Read throttled bytes/sec")
-	writeThrottleString = flag.String("wt", "0", "Write throttled bytes/sec")
 	loopCount = flag.Int("lc", 1, "Loop count")
-	loopTimeout = flag.Int("lt", common.DurationToMillisecond(time.Second), "Loop timeout")
-	loopSleep = flag.Int("ls", common.DurationToMillisecond(time.Second), "Loop sleep between loop steps")
+	loopTimeout = flag.Int("lt", 0, "Loop timeout")
+	loopSleep = flag.Int("ls", 0, "Loop sleep between loop steps")
 	readySleep = flag.Int("rs", common.DurationToMillisecond(time.Second), "Sender sleep time before send READY")
 }
 
@@ -125,7 +119,7 @@ func closeHasher(loop int, hasher hash.Hash) {
 
 			common.Info("%s expect: %s", strings.ToUpper(*hashAlg), expected)
 
-			if expected != hashCalculated {
+			if strings.ToUpper(expected) != strings.ToUpper(hashCalculated) {
 				verifyError++
 
 				common.Info("Hash Error #%d", verifyError)
@@ -275,7 +269,7 @@ func sendData(loop int, writer io.Writer) (hash.Hash, int64, time.Duration, erro
 	ba := make([]byte, bufferSize)
 	start := time.Now()
 
-	if len(filenames) == 0 && *loopTimeout > 0 {
+	if len(filenames) == 0 && len(hashExpected) == 0 && *loopTimeout > 0 {
 		reader = common.NewDeadlineReader(reader, common.MillisecondToDuration(*loopTimeout))
 	}
 
@@ -371,21 +365,24 @@ func start() error {
 
 	common.Info("Buffer size: %s", common.FormatMemory(bufferSize))
 
-	readThrottle, err = common.ParseMemory(*readThrottleString)
-	if common.Error(err) {
-		return err
+	if mustReceiveData() {
+		if *loopTimeout == 0 {
+			*loopTimeout = 1000
+		}
+
+		if *loopSleep == 0 {
+			*loopSleep = 1000
+		}
 	}
 
-	writeThrottle, err = common.ParseMemory(*writeThrottleString)
-	if common.Error(err) {
-		return err
-	}
+	if mustSendData() {
+		if *loopTimeout == 0 {
+			*loopTimeout = 1000
+		}
 
-	if readThrottle > 0 {
-		common.Info("READ throttle bytes/sec: %s = %d Bytes", *readThrottleString, readThrottle)
-	}
-	if writeThrottle > 0 {
-		common.Info("WRITE throttle bytes/sec: %s = %d Bytes", *writeThrottleString, writeThrottle)
+		if *loopSleep == 0 {
+			*loopSleep = 2000
+		}
 	}
 
 	for _, filename := range filenames {
@@ -404,12 +401,6 @@ func start() error {
 				return common.ErrorReturn(fmt.Errorf("file already exists: %s", filename))
 			}
 		}
-	}
-
-	if common.IsRunningAsService() {
-		common.Info("Running as server -> looping forever")
-
-		*loopCount = 0
 	}
 
 	return nil
@@ -457,7 +448,7 @@ func run() error {
 		common.Error(ep.Stop())
 	}()
 
-	for loop := 0; loop < *loopCount || (*loopCount == 0); loop++ {
+	for loop := 0; mustReceiveData() || (loop < *loopCount); loop++ {
 		if *loopCount > 1 {
 			common.Info("Loop #%v", loop)
 		}
@@ -477,7 +468,7 @@ func stop() error {
 	if len(hashExpected) > 0 {
 		common.Info("")
 		common.Info("--- Summary ------------------------")
-		common.Info("Amount:  %d", verifyCount)
+		common.Info("Runs:    %d", verifyCount)
 		common.Info("Correct: %d", verifyCount-verifyError)
 		common.Info("Errors:  %d", verifyError)
 	}
