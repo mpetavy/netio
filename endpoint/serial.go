@@ -87,6 +87,16 @@ func (serialServer *SerialServer) GetConnection() (Connection, error) {
 		return nil, err
 	}
 
+	err = port.ResetInputBuffer()
+	if common.Error(err) {
+		return nil, err
+	}
+
+	err = port.ResetOutputBuffer()
+	if common.Error(err) {
+		return nil, err
+	}
+
 	return &SerialConnection{
 		port: port,
 	}, nil
