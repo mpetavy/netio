@@ -190,10 +190,9 @@ func readData(loop int, reader io.Reader) (hash.Hash, int64, time.Duration, erro
 	if len(filenames) > 0 {
 		filename := filenames[loop%len(filenames)]
 
-		b, _ := common.FileExists(filename)
-
-		if b {
-			return nil, 0, 0, fmt.Errorf("file already exists: %s", filename)
+		err := common.FileBackup(filename)
+		if common.Error(err) {
+			return nil, 0, 0, err
 		}
 
 		file, err := os.OpenFile(filename, os.O_CREATE|os.O_APPEND|os.O_RDWR, os.ModePerm)
