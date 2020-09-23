@@ -16,14 +16,14 @@ import (
 	"github.com/mpetavy/common"
 )
 
-// -s /dev/ttyUSB0,115200 -lc 0 -e fc7fa95c5659ccdf5aad8c883916a854
-// -c /dev/ttyUSB1,115200 -f README.md -lc 5 -ls 2000
+// -s COM3,115200 -e 73e635a16e430826fef008d97abf6012
+// -c COM4,115200 -f README.md
 
-// -s /dev/ttyUSB0,115200 -ds -f README.md -lc 5 -ls 2000
-// -c /dev/ttyUSB1,115200 -dr -lc 0 -rs 3000 -e fc7fa95c5659ccdf5aad8c883916a854
+// -s COM3,115200 -ds -f README.md -lc 5 -ls 2000
+// -c COM4,115200 -dr -rs 3000 -e 73e635a16e430826fef008d97abf6012
 
-// -s /dev/ttyUSB0,115200 -lc 0
-// -c /dev/ttyUSB1,115200 -lc 5 -ls 2000 -r
+// -s COM3,115200
+// -c COM4,115200 -lc 5 -r
 
 var (
 	LDFLAG_DEVELOPER = "mpetavy"                          // will be replaced with ldflag
