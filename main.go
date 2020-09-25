@@ -44,11 +44,11 @@ var (
 	bufferSizeString *string
 	loopCount        *int
 	loopTimeout      *int
+	loopSleep        *int
 	readySleep       *int
 	hashAlg          *string
 	hashExpected     common.MultiValueFlag
 	randomBytes      *bool
-	loopSleep        *int
 	bufferSize       int64
 
 	isClient       bool
@@ -76,18 +76,18 @@ func init() {
 	flag.Var(&hashExpected, "e", "Expected hash value(s)")
 	randomBytes = flag.Bool("r", false, "Send random bytes (or '0' bytes)")
 	bufferSizeString = flag.String("bs", "32K", "Buffer size in bytes")
-	loopCount = flag.Int("lc", 0, "Loop count")
+	loopCount = flag.Int("lc", 0, "Loop count. Must be defined equaly on client and server side")
 	loopTimeout = flag.Int("lt", 0, "Loop timeout")
 	loopSleep = flag.Int("ls", 0, "Loop sleep between loop steps")
 	readySleep = flag.Int("rs", common.DurationToMillisecond(time.Second), "Sender sleep time before send READY")
 }
 
 func mustSendData() bool {
-	return *isDataSender || (*client != "" && !*isDataReceiver)
+	return (*client != "" && !*isDataReceiver) || (*server != "" && *isDataSender)
 }
 
 func mustReceiveData() bool {
-	return *isDataReceiver || (*server != "" && !*isDataSender)
+	return (*client != "" && *isDataReceiver) || (*server != "" && !*isDataSender)
 }
 
 func openHasher() (hash.Hash, error) {
@@ -343,12 +343,6 @@ func work(loop int, ep endpoint.Endpoint) error {
 
 	common.DebugError(connection.Close())
 
-	if mustSendData() && *loopCount > 1 && *loopSleep > 0 {
-		common.Info("Loop sleep: %v", common.MillisecondToDuration(*loopSleep))
-
-		time.Sleep(common.MillisecondToDuration(*loopSleep))
-	}
-
 	return nil
 }
 
@@ -390,7 +384,9 @@ func start() error {
 		if len(filenames) > 0 {
 			*loopCount = len(filenames)
 		} else {
-			*loopCount = 1
+			if len(hashExpected) > 0 {
+				*loopCount = len(hashExpected)
+			}
 		}
 	}
 
@@ -457,14 +453,19 @@ func run() error {
 		common.Error(ep.Stop())
 	}()
 
-	for loop := 0; mustReceiveData() || (loop < *loopCount); loop++ {
-		if *loopCount > 1 {
-			common.Info("Loop #%v", loop)
-		}
+	for loop := 0; (*loopCount == 0) || (loop < *loopCount); loop++ {
+		common.Info("")
+		common.Info("Loop #%v", loop+1)
 
 		err = work(loop, ep)
 		if common.Error(err) {
 			return err
+		}
+
+		if mustSendData() && *loopSleep > 0 && (*loopCount == 0) || ((loop + 1) < *loopCount) {
+			common.Info("Loop sleep: %v", common.MillisecondToDuration(*loopSleep))
+
+			time.Sleep(common.MillisecondToDuration(*loopSleep))
 		}
 	}
 

@@ -1,10 +1,11 @@
-# NETIO documentation v1.0.1
+# NETIO documentation v1.0.2
 
 ## Document Version
 Version | Date | Author | Description
 ------------ | ------------ | ------------- | -------------
 1.0.0 | 15.09.2020 | mpetavy | Initial release
 1.0.1 | 21.09.2020 | mpetavy | Added more samples. connection role, data role
+1.0.2 | 25.09.2020 | mpetavy | Added more samples. 
 
 ## Description
 NETIO is a performance testing tool for network or serial connections.
@@ -15,22 +16,16 @@ The following feature set is supported:
 * Looping rounds with timeout or file transfer
 * MD5, SHA224 or SHA256 Hash digest calculation and verification
 
-To test data transfer there must be two NETO sessions running.
-
-Both the client and server calculate on their own a hash digest of the sent and received data.
-
-The data receiving endpoint can be configured to verify the hash digest with a defined value (-e).
-
-* A client (-c) and a server (-s).
-* In default the client connects to the server and send data
-* By using "-dr" and "-ds" the client still connects to the server but this time the server sends test data
+* Two NETO sessions must running to test data transfer, a client (-c) which sends data and a server (-s) which receives and verifies data.
+* By using "-dr" and "-ds" the client still connects to the server but this time the server sends test data and the client verifies data
+* Both the client and server calculate on their own a hash digest of the sent and received data.
+* The data receiving endpoint can be configured to verify the hash digest with a defined value (-e).
 * Data can be zero bytes (default), random bytes (-r) or the content of a file(s) (-f).
-* The received data can be dumped to a file (-f).
-* The data receiving endpoint loops for connections forever
-* The data receiving endpoint can be breaked by CTRL and then gives a result of runs, correct and erroneous data transfers
-* The amount of loop steps in default is 1 (-lc).
-* If no file content for transfer is provided then each loop step is limited in default to 1 sec. (-lt) Can produce different data transfers
+* The received data can be dumped on the data receiving endpoint to a file (-f).
+* The data receiving endpoint can be breaked by CTRL-C. On that it gives the result of runned loops and the amount of correct/rroneous data transfers
+* If no file content for transfer is provided then each loop step is limited in default to 1 sec. (-lt)
 * If a file content for transfer is provided then each loop step transfers the data without limitations
++ Multiple files (-f) can be transfered in serial. In order to verify the transfer the same amount of expected hashes (-e) must be defined
 
 ## Connection roles and data roles
 With two NETIO there must always be a "client" and a "server" to communicate.
@@ -38,7 +33,7 @@ With two NETIO there must always be a "client" and a "server" to communicate.
 NETIO can be starter in "client" (-c) or "server" (-s) connection role.
 
 * As a "server" NETIO waits for incoming connections and has in default the data role of "receiving data".
-* As a "client" NETIO just connects and has in default the data role of "sending data".
+* As a "client" NETIO connects to the server and has in default the data role of "sending data".
 
 The default data role can be changed with the "-ds" or "-dr" parameter.
 
@@ -50,8 +45,9 @@ With a network connection the end of data transfer can be recognized either by a
 
 If you send data via a serial port then this data is either consumed (by a connected other serial port) or just vanishes to the unknown.
 
-In order to recognize a chunk of daat going over a serial data transfer there must be a timeout elapsing after the last byte of the chunk. 
-By that the consuming partner recognized the end of transfer.
+In order to recognize a chunk of data which is transfered over a serial line there must some event which defines the end of a data chunk.
+This event is in default a timeout elapsing after the last byte of the chunk where not any data is transfered. 
+By that the consuming partner recognized the end of transfer of a data chunk.
 
 For the sending partner the parameter "-ls" defines the time to sleep between two transfers. 
 
@@ -123,14 +119,10 @@ To build a binary executable for your preferred OS please do the following:
 1. CD into the "src" subdirectory
 1. Clone the netio repository
 1. CD into the "netio" directory
-1. Build manually:
+1. Build:
     1. If you would like to cross compile to an other OS/architecture define the env variable GOOS and GOARCH along to the values defined here https://github.com/golang/go/blob/master/src/go/build/syslist.go
     1. Build NETIO by "go install". Multiple dependent modules will be downloaded during the build
     1. After a successful build you will find the NETIO executable in the "GOPATH\bin" directory
-1. Build automatically with GoReleaser https://goreleaser.com/:
-    1. Use just or modify the build configuration file.goreleaser.yml
-    1. Execute: `goreleaser --snapshot --skip-publish --rm-dist`
-    1. After a successful build you will find the NETIO executable in the ".dist" directory.
 
 ## Installation as application
 Like all other GO based application there is only the file `netio.exe` or `netio` which contains the complete application.
@@ -198,7 +190,6 @@ Content of the file 'lxc.sh':
 The ending line 'lxc list debian-netio' prints out the IP address on which you can connect to the NETIO interface.
 
 ## Serial interface parameter format
-
 The format for defining a serial device is as follows:
 
     <device>,<baud>,<databits,<parity>,<stopbits>
@@ -226,7 +217,7 @@ Please substitute default filename parameters with the prefix "/home/ransom/go/s
 Parameter | Default value | Description
 ------------ | ------------- | -------------
 ? | false | show usage
-bak | 3 | amount of file backups
+backup.count | 3 | amount of file backups
 bs | 32K | Buffer size in bytes
 c |  | Client address/serial port
 cfg.file | D:\go\src\netio\netio.json | Configuration file
@@ -237,7 +228,7 @@ e |  | Expected hash value(s)
 f |  | Filename(s) to write to (server) or read from (client)
 h | md5 | Hash algorithm (md5, sha224, sha256)
 language | en | language for messages
-lc | 0 | Loop count
+lc | 0 | Loop count. Must be defined equaly on client and server side
 log.file |  | filename to log logFile (use "." for D:\go\src\netio\netio.log)
 log.filesize | 5242880 | max log file size
 log.io | false | trace logging
@@ -262,27 +253,29 @@ It is assumed that /dev/ttyUSB0 and /dev/ttyUSB1 are connected with a serial cab
 Client and Server can run on the same machine or different machines.
 The samples are showing the both commands which must be executed. 
 
-    # server listens on Port 15000 with TLS
-    # client connects and send for 1 sec zero value data
     netio -s :15000 -tls
     netio -c :15000 -tls
     
-    # server listens on port /dev/ttyUSB0,115200
-    # client connects on Port /dev/ttyUSB0,115200 connects and send for 1 sec random value data
     netio -s /dev/ttyUSB0,115200 
     netio -c /dev/ttyUSB1,115200 -r 
 
-    # server listens on port /dev/ttyUSB0,115200,8,N,1 waits for incoming connection and verifies with hash value 3fc8eaba542609681ac900797e67ac98
-    # client connects on port /dev/ttyUSB1,115200,8,N,1 and sends the file "testfile.txt"
     netio -s /dev/ttyUSB0,115200,8,N,1 -e 3fc8eaba542609681ac900797e67ac98 
     netio -c /dev/ttyUSB1,115200,8,N,1 -f testfile.txt
     
-    # server listens on port /dev/ttyUSB0,115200,8,N,1 waits for incoming connection and verifies with hash value 3fc8eaba542609681ac900797e67ac98, loop forever
-    # client connects on port /dev/ttyUSB1,115200,8,N,1 and sends the file "testfile.txt" 5 times and sleeps 2000 msec to give server the time to recognize transfer chunk
-    netio -s /dev/ttyUSB0,115200 -lc 0 -e 3fc8eaba542609681ac900797e67ac98
+    netio -s /dev/ttyUSB0,115200 -e 3fc8eaba542609681ac900797e67ac98 -lc 5
     netio -c /dev/ttyUSB1,115200 -f testfile.txt -lc 5
     
-    # server listens on port /dev/ttyUSB0,115200,8,N,1 waits for incoming connection and sends the file "testfile.txt" 5 times and sleeps 2000 msec to give client the time to recognize transfer chunk 
-    # client connects on port /dev/ttyUSB1,115200,8,N,1 and verifies with hash value 3fc8eaba542609681ac900797e67ac98, loops forever 
     netio -s /dev/ttyUSB0,115200 -ds -f testfile.txt -lc 5
-    netio -c /dev/ttyUSB1,115200 -dr -lc 0 -rs 3000 -e 3fc8eaba542609681ac900797e67ac98
+    netio -c /dev/ttyUSB1,115200 -dr -e 3fc8eaba542609681ac900797e67ac98 -lc 5
+
+    netio -s COM6,115200 -e dc70cc028aadfad54b0a587b6f10b833 -e 0535df82c4749f4af18f07c8fbae8ef7 -e 736b945073b56d09c163ce7f2ee98ac5
+    netio -c 192.168.1.165:15001 -tls -f test1.txt -f test2.txt -f test3.txt
+    
+    netio -s :9999 -tls -e dc70cc028aadfad54b0a587b6f10b833 -e 0535df82c4749f4af18f07c8fbae8ef7 -e 736b945073b56d09c163ce7f2ee98ac5
+    netio -c 192.168.1.165:15002 -tls -f test1.txt -f test2.txt -f test3.txt
+
+    netio -s COM6,115200 -ds -f test1.txt -f test2.txt -f test3.txt -lc 100
+    netio -c 192.168.1.165:15001 -tls -dr -e dc70cc028aadfad54b0a587b6f10b833 -e 0535df82c4749f4af18f07c8fbae8ef7 -e 736b945073b56d09c163ce7f2ee98ac5 -lc 100
+     
+    netio -s :9999 -tls -ds -f test1.txt -f test2.txt -f test3.txt -lc 100
+    netio -c 192.168.1.165:15002 -tls -dr -e dc70cc028aadfad54b0a587b6f10b833 -e 0535df82c4749f4af18f07c8fbae8ef7 -e 736b945073b56d09c163ce7f2ee98ac5 -lc 100
