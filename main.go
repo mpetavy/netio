@@ -8,7 +8,6 @@ import (
 	"hash"
 	"io"
 	"io/ioutil"
-	"math"
 	"netio/endpoint"
 	"os"
 	"strings"
@@ -253,7 +252,7 @@ func sendData(loop int, writer io.Writer) (hash.Hash, int64, time.Duration, erro
 			return nil, 0, 0, err
 		}
 
-		common.Info("Sending file content: %v %v bytes ...", filename, filesize)
+		common.Info("Sending file content: %v %s ...", filename, common.FormatMemory(filesize))
 	} else {
 		if *randomBytes {
 			reader = common.NewRandomReader()
@@ -281,6 +280,16 @@ func sendData(loop int, writer io.Writer) (hash.Hash, int64, time.Duration, erro
 	return hasher, n, time.Since(start), nil
 }
 
+func calcPerformance(n int64, duration time.Duration) string {
+	if duration.Seconds() >= 1 {
+		bytesPerSecond := int64(float64(n) / duration.Seconds())
+
+		return fmt.Sprintf("%s/%v", common.FormatMemory(bytesPerSecond), time.Second)
+	} else {
+		return fmt.Sprintf("%s/%v", common.FormatMemory(n), duration)
+	}
+}
+
 func work(loop int, ep endpoint.Endpoint) error {
 	connection, err := ep.GetConnection()
 	if common.Error(err) {
@@ -304,19 +313,12 @@ func work(loop int, ep endpoint.Endpoint) error {
 			}
 		}
 
-		var duration time.Duration
-		var hasher hash.Hash
-		var n int64
-
-		hasher, n, duration, err = sendData(loop, connection)
+		hasher, n, duration, err := sendData(loop, connection)
 		if common.Error(err) {
 			return err
 		}
 
-		n = int64(math.Round(float64(n) / float64(duration.Seconds())))
-		duration = time.Second
-
-		common.Info("Bytes sent: %v/%+v", common.FormatMemory(n), duration)
+		common.Info("Bytes sent: %s", calcPerformance(n, duration))
 
 		closeHasher(loop, hasher)
 	}
@@ -329,19 +331,12 @@ func work(loop int, ep endpoint.Endpoint) error {
 			}
 		}
 
-		var duration time.Duration
-		var hasher hash.Hash
-		var n int64
-
-		hasher, n, duration, err = readData(loop, connection)
+		hasher, n, duration, err := readData(loop, connection)
 		if common.Error(err) {
 			return err
 		}
 
-		n = int64(math.Round(float64(n) / float64(duration.Seconds())))
-		duration = time.Second
-
-		common.Info("Bytes read: %v/%+v", common.FormatMemory(n), duration)
+		common.Info("Bytes received: %s", calcPerformance(n, duration))
 
 		closeHasher(loop, hasher)
 	}
@@ -471,8 +466,6 @@ func run() error {
 		if common.Error(err) {
 			return err
 		}
-
-		common.Info("")
 	}
 
 	return nil
