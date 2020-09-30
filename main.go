@@ -8,6 +8,7 @@ import (
 	"hash"
 	"io"
 	"io/ioutil"
+	"math"
 	"netio/endpoint"
 	"os"
 	"strings"
@@ -50,6 +51,8 @@ var (
 	hashExpected     common.MultiValueFlag
 	randomBytes      *bool
 	bufferSize       int64
+	text             *string
+	verbose          *bool
 
 	isClient       bool
 	device         string
@@ -63,7 +66,7 @@ const (
 )
 
 func init() {
-	common.Init(true, LDFLAG_VERSION, "2019", "network/serial performance testing tool", LDFLAG_DEVELOPER, LDFLAG_HOMEPAGE, LDFLAG_LICENSE, start, stop, run, 0)
+	common.Init(true, LDFLAG_VERSION, LDFLAG_GIT, "2019", "network/serial performance testing tool", LDFLAG_DEVELOPER, LDFLAG_HOMEPAGE, LDFLAG_LICENSE, start, stop, run, 0)
 
 	client = flag.String("c", "", "Client address/serial port")
 	server = flag.String("s", "", "Server address/serial port")
@@ -80,6 +83,8 @@ func init() {
 	loopTimeout = flag.Int("lt", 0, "Loop timeout")
 	loopSleep = flag.Int("ls", 0, "Loop sleep between loop steps")
 	readySleep = flag.Int("rs", common.DurationToMillisecond(time.Second), "Sender sleep time before send READY")
+	text = flag.String("t", "", "text to send")
+	verbose = flag.Bool("v", false, "output the received content")
 }
 
 func mustSendData() bool {
@@ -178,6 +183,17 @@ func sendReady(connection endpoint.Connection) error {
 	return nil
 }
 
+type ConsoleWriter struct {
+	HasEndedWithCRLF bool
+}
+
+func (this *ConsoleWriter) Write(p []byte) (n int, err error) {
+	txt := string(p)
+
+	this.HasEndedWithCRLF = strings.HasSuffix(txt, "\n")
+
+	return fmt.Printf("%s", txt)
+}
 func readData(loop int, reader io.Reader) (hash.Hash, int64, time.Duration, error) {
 	var writer io.Writer
 	var err error
@@ -212,16 +228,32 @@ func readData(loop int, reader io.Reader) (hash.Hash, int64, time.Duration, erro
 	common.Info("Reading bytes ...")
 
 	ba := make([]byte, bufferSize)
-	start := time.Now()
 
-	reader = common.NewTimeoutReader(reader, common.MillisecondToDuration(*loopTimeout), false)
+	timeoutReader := common.NewTimeoutReader(reader, common.MillisecondToDuration(*loopTimeout), false)
 
-	n, err := io.CopyBuffer(io.MultiWriter(hasher, writer), reader, ba)
+	reader = timeoutReader
+
+	var cw *ConsoleWriter
+
+	verboseOutput := ioutil.Discard
+	if *verbose {
+		cw = &ConsoleWriter{}
+
+		verboseOutput = cw
+	}
+
+	n, err := io.CopyBuffer(io.MultiWriter(hasher, writer, verboseOutput), reader, ba)
 	if common.Error(err) {
 		return nil, 0, 0, err
 	}
 
-	return hasher, n, time.Since(start), nil
+	d := time.Since(timeoutReader.FirstRead)
+
+	if cw != nil && !cw.HasEndedWithCRLF {
+		fmt.Printf("\n")
+	}
+
+	return hasher, n, d, nil
 }
 
 func sendData(loop int, writer io.Writer) (hash.Hash, int64, time.Duration, error) {
@@ -233,60 +265,69 @@ func sendData(loop int, writer io.Writer) (hash.Hash, int64, time.Duration, erro
 		return nil, 0, 0, err
 	}
 
-	if len(filenames) > 0 {
-		filename := filenames[loop%len(filenames)]
+	if *text != "" {
+		reader = strings.NewReader(*text)
 
-		file, err := os.Open(filename)
-		if err != nil {
-			return nil, 0, 0, err
-		}
-
-		defer func() {
-			common.DebugError(file.Close())
-		}()
-
-		reader = file
-
-		filesize, err := common.FileSize(filename)
-		if err != nil {
-			return nil, 0, 0, err
-		}
-
-		common.Info("Sending file content: %v %s ...", filename, common.FormatMemory(filesize))
+		common.Info("Sending text %s ...", *text)
 	} else {
-		if *randomBytes {
-			reader = common.NewRandomReader()
+		if len(filenames) > 0 {
+			filename := filenames[loop%len(filenames)]
 
-			common.Info("Sending random bytes ...")
+			file, err := os.Open(filename)
+			if err != nil {
+				return nil, 0, 0, err
+			}
+
+			defer func() {
+				common.DebugError(file.Close())
+			}()
+
+			reader = file
+
+			filesize, err := common.FileSize(filename)
+			if err != nil {
+				return nil, 0, 0, err
+			}
+
+			common.Info("Sending file content: %v %s ...", filename, common.FormatMemory(filesize))
 		} else {
-			reader = common.NewZeroReader()
+			if *randomBytes {
+				reader = common.NewRandomReader()
 
-			common.Info("Sending zero bytes ...")
+				common.Info("Sending random bytes ...")
+			} else {
+				reader = common.NewZeroReader()
+
+				common.Info("Sending zero bytes ...")
+			}
 		}
 	}
 
 	ba := make([]byte, bufferSize)
-	start := time.Now()
 
 	if len(filenames) == 0 && len(hashExpected) == 0 && *loopTimeout > 0 {
 		reader = common.NewDeadlineReader(reader, common.MillisecondToDuration(*loopTimeout))
 	}
+
+	start := time.Now()
 
 	n, err := io.CopyBuffer(io.MultiWriter(hasher, writer), reader, ba)
 	if common.Error(err) {
 		return nil, 0, 0, err
 	}
 
-	return hasher, n, time.Since(start), nil
+	d := time.Since(start)
+
+	return hasher, n, d, nil
 }
 
-func calcPerformance(n int64, duration time.Duration) string {
-	if duration.Seconds() >= 1 {
-		bytesPerSecond := int64(float64(n) / duration.Seconds())
+func calcPerformance(n int64, d time.Duration) string {
+	if d.Seconds() >= 1 {
+		bytesPerSecond := int64(float64(n) / math.Round(d.Seconds()))
 
 		return fmt.Sprintf("%s/%v", common.FormatMemory(bytesPerSecond), time.Second)
 	} else {
-		return fmt.Sprintf("%s/%v", common.FormatMemory(n), duration)
+		return fmt.Sprintf("%s/%v", common.FormatMemory(n), d)
 	}
 }
 
@@ -381,11 +422,15 @@ func start() error {
 	}
 
 	if *loopCount == 0 {
-		if len(filenames) > 0 {
-			*loopCount = len(filenames)
+		if *text != "" {
+			*loopCount = 1
 		} else {
-			if len(hashExpected) > 0 {
-				*loopCount = len(hashExpected)
+			if len(filenames) > 0 {
+				*loopCount = len(filenames)
+			} else {
+				if len(hashExpected) > 0 {
+					*loopCount = len(hashExpected)
+				}
 			}
 		}
 	}
