@@ -183,17 +183,18 @@ func sendReady(connection endpoint.Connection) error {
 	return nil
 }
 
-type ConsoleWriter struct {
+type consoleWriter struct {
 	HasEndedWithCRLF bool
 }
 
-func (this *ConsoleWriter) Write(p []byte) (n int, err error) {
+func (this *consoleWriter) Write(p []byte) (n int, err error) {
 	txt := string(p)
 
 	this.HasEndedWithCRLF = strings.HasSuffix(txt, "\n")
 
 	return fmt.Printf("%s", txt)
 }
+
 func readData(loop int, reader io.Reader) (hash.Hash, int64, time.Duration, error) {
 	var writer io.Writer
 	var err error
@@ -233,11 +234,11 @@ func readData(loop int, reader io.Reader) (hash.Hash, int64, time.Duration, erro
 
 	reader = timeoutReader
 
-	var cw *ConsoleWriter
+	var cw *consoleWriter
 
 	verboseOutput := ioutil.Discard
 	if *verbose {
-		cw = &ConsoleWriter{}
+		cw = &consoleWriter{}
 
 		verboseOutput = cw
 	}
