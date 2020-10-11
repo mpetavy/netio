@@ -243,10 +243,7 @@ func readData(loop int, reader io.Reader) (hash.Hash, int64, time.Duration, erro
 		verboseOutput = cw
 	}
 
-	n, err := io.CopyBuffer(io.MultiWriter(hasher, writer, verboseOutput), reader, ba)
-	if common.Error(err) {
-		return nil, 0, 0, err
-	}
+	n, _ := io.CopyBuffer(io.MultiWriter(hasher, writer, verboseOutput), reader, ba)
 
 	d := time.Since(timeoutReader.FirstRead)
 
