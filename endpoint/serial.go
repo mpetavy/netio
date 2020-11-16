@@ -21,20 +21,6 @@ func (serialConnection *SerialConnection) Write(p []byte) (n int, err error) {
 	return serialConnection.port.Write(p)
 }
 
-func (serialConnection *SerialConnection) Reset() error {
-	//err := serialConnection.port.ResetInputBuffer()
-	//if common.Error(err) {
-	//	return err
-	//}
-	//
-	//err = serialConnection.port.ResetOutputBuffer()
-	//if common.Error(err) {
-	//	return err
-	//}
-
-	return nil
-}
-
 func (serialConnection *SerialConnection) Close() error {
 	defer func() {
 		serialConnection.port = nil

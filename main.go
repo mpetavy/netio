@@ -335,11 +335,6 @@ func work(loop int, ep endpoint.Endpoint) error {
 		return err
 	}
 
-	err = connection.Reset()
-	if common.Error(err) {
-		return err
-	}
-
 	defer func() {
 		common.DebugError(connection.Close())
 	}()
