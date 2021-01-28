@@ -3,13 +3,13 @@ package main
 import (
 	"crypto/md5"
 	"crypto/sha256"
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"hash"
 	"io"
 	"io/ioutil"
 	"math"
-	"netio/endpoint"
 	"os"
 	"strings"
 	"time"
@@ -39,7 +39,6 @@ var (
 	server           *string
 	filenames        common.MultiValueFlag
 	useTls           *bool
-	useTlsVerify     *bool
 	isDataSender     *bool
 	isDataReceiver   *bool
 	bufferSizeString *string
@@ -54,30 +53,36 @@ var (
 	text             *string
 	verbose          *bool
 
-	isClient       bool
-	device         string
-	isSerialDevice bool
-	verifyCount    int
-	verifyError    int
+	isClient    bool
+	device      string
+	isTTYDevice bool
+	verifyCount int
+	verifyError int
 )
 
 const (
 	READY = "###-READY-###"
 )
 
-func init() {
-	common.Init(true, LDFLAG_VERSION, LDFLAG_GIT, "2019", "network/serial performance testing tool", LDFLAG_DEVELOPER, LDFLAG_HOMEPAGE, LDFLAG_LICENSE, start, stop, run, 0)
+type Endpoint interface {
+	Start() error
+	Stop() error
+}
 
-	client = flag.String("c", "", "Client address/serial port")
-	server = flag.String("s", "", "Server address/serial port")
+type EndpointConnector func() (io.ReadWriteCloser, error)
+
+func init() {
+	common.Init(true, LDFLAG_VERSION, LDFLAG_GIT, "2019", "TCP/TTY performance testing tool", LDFLAG_DEVELOPER, LDFLAG_HOMEPAGE, LDFLAG_LICENSE, start, stop, run, 0)
+
+	client = flag.String("c", "", "Client network address or TTY port")
+	server = flag.String("s", "", "Server network address or TTY port")
 	flag.Var(&filenames, "f", "Filename(s) to write to (server) or read from (client)")
 	useTls = flag.Bool("tls", false, "Use TLS")
-	useTlsVerify = flag.Bool("tls.verify", false, "TLS verification")
 	isDataSender = flag.Bool("ds", false, "Act as data sender")
 	isDataReceiver = flag.Bool("dr", false, "Act as data receiver")
 	hashAlg = flag.String("h", "md5", "Hash algorithm (md5, sha224, sha256)")
 	flag.Var(&hashExpected, "e", "Expected hash value(s)")
-	randomBytes = flag.Bool("r", false, "Send random bytes (or '0' bytes)")
+	randomBytes = flag.Bool("r", true, "Send random bytes or zero bytes")
 	bufferSizeString = flag.String("bs", "32K", "Buffer size in bytes")
 	loopCount = flag.Int("lc", 0, "Loop count. Must be defined equaly on client and server side")
 	loopTimeout = flag.Int("lt", 0, "Loop timeout")
@@ -137,11 +142,11 @@ func closeHasher(loop int, hasher hash.Hash) {
 	}
 }
 
-func isSerialPortOptions(device string) bool {
+func isTTYOptions(device string) bool {
 	return len(device) > 0 && (strings.Contains(device, ",") || !strings.Contains(device, ":"))
 }
 
-func waitForReady(connection endpoint.Connection) error {
+func waitForReady(connection io.ReadWriteCloser) error {
 	received := ""
 	ba := make([]byte, len(READY))
 
@@ -167,7 +172,7 @@ func waitForReady(connection endpoint.Connection) error {
 	return nil
 }
 
-func sendReady(connection endpoint.Connection) error {
+func sendReady(connection io.ReadWriteCloser) error {
 	if *readySleep > 0 {
 		common.Info("Ready sleep: %v", common.MillisecondToDuration(*readySleep))
 
@@ -243,7 +248,10 @@ func readData(loop int, reader io.Reader) (hash.Hash, int64, time.Duration, erro
 		verboseOutput = cw
 	}
 
-	n, _ := io.CopyBuffer(io.MultiWriter(hasher, writer, verboseOutput), reader, ba)
+	n, err := common.CopyBufferError(io.CopyBuffer(io.MultiWriter(hasher, writer, verboseOutput), reader, ba))
+	if common.Error(err) {
+		return nil, 0, 0, err
+	}
 
 	d := time.Since(timeoutReader.FirstRead)
 
@@ -309,12 +317,13 @@ func sendData(loop int, writer io.Writer) (hash.Hash, int64, time.Duration, erro
 
 	start := time.Now()
 
-	n, err := io.CopyBuffer(io.MultiWriter(hasher, writer), reader, ba)
+	n, err := common.CopyBufferError(io.CopyBuffer(io.MultiWriter(hasher, writer), reader, ba))
 	if common.Error(err) {
 		return nil, 0, 0, err
 	}
 
 	d := time.Since(start)
+	n = n / 2 // sent to io.MultiWriter(hasher, writer) ...
 
 	return hasher, n, d, nil
 }
@@ -329,8 +338,8 @@ func calcPerformance(n int64, d time.Duration) string {
 	}
 }
 
-func work(loop int, ep endpoint.Endpoint) error {
-	connection, err := ep.GetConnection()
+func work(loop int, connector EndpointConnector) error {
+	connection, err := connector()
 	if common.Error(err) {
 		return err
 	}
@@ -375,8 +384,6 @@ func work(loop int, ep endpoint.Endpoint) error {
 		closeHasher(loop, hasher)
 	}
 
-	common.DebugError(connection.Close())
-
 	return nil
 }
 
@@ -388,7 +395,7 @@ func start() error {
 		return err
 	}
 
-	if isSerialPortOptions(*server) || isSerialPortOptions(*client) {
+	if isTTYOptions(*server) || isTTYOptions(*client) {
 		bufferSize = int64(common.Min(1024, int(bufferSize)))
 	}
 
@@ -430,17 +437,13 @@ func start() error {
 
 	for _, filename := range filenames {
 		if mustSendData() {
-			b, _ := common.FileExists(filename)
-
-			if !b {
+			if !common.FileExists(filename) {
 				return common.ErrorReturn(&common.ErrFileNotFound{FileName: filename})
 			}
 		}
 
 		if mustReceiveData() {
-			b, _ := common.FileExists(filename)
-
-			if b {
+			if !common.FileExists(filename) {
 				return common.ErrorReturn(fmt.Errorf("file already exists: %s", filename))
 			}
 		}
@@ -458,27 +461,56 @@ func run() error {
 		device = *server
 	}
 
-	isSerialDevice = isSerialPortOptions(device)
+	isTTYDevice = isTTYOptions(device)
 
 	var err error
-	var ep endpoint.Endpoint
+	var ep Endpoint
+	var connector EndpointConnector
 
-	if isSerialDevice {
-		ep, err = endpoint.NewSerialServer(device)
+	if isTTYDevice {
+		tty, err := common.NewTTY(device)
 		if common.Error(err) {
 			return err
 		}
+
+		ep = tty
+
+		connector = func() (io.ReadWriteCloser, error) {
+			return tty.Connect()
+		}
 	} else {
+		var tlsConfig *tls.Config
+		var err error
+
+		if *useTls {
+			tlsConfig, err = common.NewTlsConfigFromFlags()
+			if common.Error(err) {
+				return err
+			}
+		}
+
 		if isClient {
-			ep, err = endpoint.NewNetworkClient(device, *useTls, *useTlsVerify)
+			networkClient, err := common.NewNetworkClient(device, tlsConfig)
 			if common.Error(err) {
 				return err
 			}
+
+			connector = func() (io.ReadWriteCloser, error) {
+				return networkClient.Connect()
+			}
+
+			ep = networkClient
 		} else {
-			ep, err = endpoint.NewNetworkServer(device, *useTls, *useTlsVerify)
+			networkServer, err := common.NewNetworkServer(device, tlsConfig)
 			if common.Error(err) {
 				return err
 			}
+
+			connector = func() (io.ReadWriteCloser, error) {
+				return networkServer.Connect()
+			}
+
+			ep = networkServer
 		}
 	}
 
@@ -495,7 +527,7 @@ func run() error {
 		common.Info("")
 		common.Info("Loop #%v", loop+1)
 
-		err = work(loop, ep)
+		err = work(loop, connector)
 		if common.Error(err) {
 			return err
 		}
