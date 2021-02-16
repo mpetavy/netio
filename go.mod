@@ -7,7 +7,7 @@ require (
 	github.com/gabriel-vasile/mimetype v1.0.5 // indirect
 	github.com/gookit/color v1.2.4 // indirect
 	github.com/labstack/echo/v4 v4.1.16 // indirect
-	github.com/mpetavy/common v1.1.87
+	github.com/mpetavy/common v1.1.89
 	github.com/stretchr/testify v1.6.1 // indirect
 	golang.org/x/crypto v0.0.0-20201002170205-7f63de1d35b0 // indirect
 	golang.org/x/text v0.3.3 // indirect
@@ -18,4 +18,4 @@ require (
 	software.sslmate.com/src/go-pkcs12 v0.0.0-20200408181440-2981468c0ff3 // indirect
 )
 
-replace github.com/mpetavy/common => ../common
+// replace github.com/mpetavy/common => ../common
