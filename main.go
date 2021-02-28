@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"hash"
 	"io"
-	"io/ioutil"
 	"math"
 	"os"
 	"strings"
@@ -228,7 +227,7 @@ func readData(loop int, reader io.Reader) (hash.Hash, int64, time.Duration, erro
 
 		writer = file
 	} else {
-		writer = ioutil.Discard
+		writer = io.Discard
 	}
 
 	common.Info("Reading bytes ...")
@@ -241,7 +240,7 @@ func readData(loop int, reader io.Reader) (hash.Hash, int64, time.Duration, erro
 
 	var cw *consoleWriter
 
-	verboseOutput := ioutil.Discard
+	verboseOutput := io.Discard
 	if *verbose {
 		cw = &consoleWriter{}
 

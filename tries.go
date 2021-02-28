@@ -4,8 +4,8 @@ import (
 	"flag"
 	"fmt"
 	"github.com/mpetavy/common"
-	"io/ioutil"
 	"net"
+	"os"
 	"os/exec"
 	"runtime"
 	"strconv"
@@ -176,7 +176,7 @@ func TryMain() error {
 
 	common.Info("Save test results: %s", fn)
 
-	err = ioutil.WriteFile(fn, []byte(html), common.DefaultFileMode)
+	err = os.WriteFile(fn, []byte(html), common.DefaultFileMode)
 	if common.Error(err) {
 		return err
 	}
