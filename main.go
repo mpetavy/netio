@@ -529,7 +529,9 @@ func run() error {
 
 		err = work(loop, connector)
 		if common.Error(err) {
-			return err
+			if mustSendData() {
+				return err
+			}
 		}
 
 		if mustSendData() && *loopSleep > 0 && (*loopCount == 0) || ((loop + 1) < *loopCount) {
