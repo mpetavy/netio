@@ -71,7 +71,7 @@ type Endpoint interface {
 type EndpointConnector func() (io.ReadWriteCloser, error)
 
 func init() {
-	common.Init(true, LDFLAG_VERSION, LDFLAG_GIT, "2019", "TCP/TTY performance testing tool", LDFLAG_DEVELOPER, LDFLAG_HOMEPAGE, LDFLAG_LICENSE, start, stop, run, 0)
+	common.Init(true, LDFLAG_VERSION, LDFLAG_GIT, "2019", "TCP/TTY performance testing tool", LDFLAG_DEVELOPER, LDFLAG_HOMEPAGE, LDFLAG_LICENSE, nil, start, stop, run, 0)
 
 	client = flag.String("c", "", "Client network address or TTY port")
 	server = flag.String("s", "", "Server network address or TTY port")
