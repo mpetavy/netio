@@ -54,7 +54,6 @@ var (
 
 	isClient    bool
 	device      string
-	isTTYDevice bool
 	verifyCount int
 	verifyError int
 )
@@ -62,13 +61,6 @@ var (
 const (
 	READY = "###-READY-###"
 )
-
-type Endpoint interface {
-	Start() error
-	Stop() error
-}
-
-type EndpointConnector func() (io.ReadWriteCloser, error)
 
 func init() {
 	common.Init(true, LDFLAG_VERSION, LDFLAG_GIT, "2019", "TCP/TTY performance testing tool", LDFLAG_DEVELOPER, LDFLAG_HOMEPAGE, LDFLAG_LICENSE, nil, start, stop, run, 0)
@@ -139,10 +131,6 @@ func closeHasher(loop int, hasher hash.Hash) {
 
 		hasher.Reset()
 	}
-}
-
-func isTTYOptions(device string) bool {
-	return len(device) > 0 && (strings.Contains(device, ",") || !strings.Contains(device, ":"))
 }
 
 func waitForReady(connection io.ReadWriteCloser) error {
@@ -234,9 +222,9 @@ func readData(loop int, reader io.Reader) (hash.Hash, int64, time.Duration, erro
 
 	ba := make([]byte, bufferSize)
 
-	timeoutReader := common.NewTimeoutReader(reader, common.MillisecondToDuration(*loopTimeout), false)
+	reader = common.NewTimeoutReader(reader, common.MillisecondToDuration(*loopTimeout), false)
 
-	reader = timeoutReader
+	timeoutReader := reader.(*common.TimeoutReader)
 
 	var cw *consoleWriter
 
@@ -337,7 +325,7 @@ func calcPerformance(n int64, d time.Duration) string {
 	}
 }
 
-func work(loop int, connector EndpointConnector) error {
+func work(loop int, connector common.EndpointConnector) error {
 	connection, err := connector()
 	if common.Error(err) {
 		return err
@@ -394,7 +382,7 @@ func start() error {
 		return err
 	}
 
-	if isTTYOptions(*server) || isTTYOptions(*client) {
+	if common.IsTTYDevice(*server) || common.IsTTYDevice(*client) {
 		bufferSize = int64(common.Min(1024, int(bufferSize)))
 	}
 
@@ -460,57 +448,19 @@ func run() error {
 		device = *server
 	}
 
-	isTTYDevice = isTTYOptions(device)
-
 	var err error
-	var ep Endpoint
-	var connector EndpointConnector
+	var tlsConfig *tls.Config
 
-	if isTTYDevice {
-		tty, err := common.NewTTY(device)
+	if *useTls {
+		tlsConfig, err = common.NewTlsConfigFromFlags()
 		if common.Error(err) {
 			return err
 		}
+	}
 
-		ep = tty
-
-		connector = func() (io.ReadWriteCloser, error) {
-			return tty.Connect()
-		}
-	} else {
-		var tlsConfig *tls.Config
-		var err error
-
-		if *useTls {
-			tlsConfig, err = common.NewTlsConfigFromFlags()
-			if common.Error(err) {
-				return err
-			}
-		}
-
-		if isClient {
-			networkClient, err := common.NewNetworkClient(device, tlsConfig)
-			if common.Error(err) {
-				return err
-			}
-
-			connector = func() (io.ReadWriteCloser, error) {
-				return networkClient.Connect()
-			}
-
-			ep = networkClient
-		} else {
-			networkServer, err := common.NewNetworkServer(device, tlsConfig)
-			if common.Error(err) {
-				return err
-			}
-
-			connector = func() (io.ReadWriteCloser, error) {
-				return networkServer.Connect()
-			}
-
-			ep = networkServer
-		}
+	ep, connector, err := common.NewEndpoint(device, isClient, tlsConfig)
+	if common.Error(err) {
+		return err
 	}
 
 	err = ep.Start()
