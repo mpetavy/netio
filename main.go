@@ -425,13 +425,21 @@ func start() error {
 	for _, filename := range filenames {
 		if mustSendData() {
 			if !common.FileExists(filename) {
-				return common.ErrorReturn(&common.ErrFileNotFound{FileName: filename})
+				err := &common.ErrFileNotFound{FileName: filename}
+
+				common.Error(err)
+
+				return err
 			}
 		}
 
 		if mustReceiveData() {
 			if !common.FileExists(filename) {
-				return common.ErrorReturn(fmt.Errorf("file already exists: %s", filename))
+				err := &common.ErrFileAlreadyExists{FileName: filename}
+
+				common.Error(err)
+
+				return err
 			}
 		}
 	}
