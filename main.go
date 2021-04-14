@@ -310,7 +310,6 @@ func sendData(loop int, writer io.Writer) (hash.Hash, int64, time.Duration, erro
 	}
 
 	d := time.Since(start)
-	n = n / 2 // sent to io.MultiWriter(hasher, writer) ...
 
 	return hasher, n, d, nil
 }
