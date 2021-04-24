@@ -32,7 +32,7 @@ var (
 	LDFLAG_VERSION   = "1.0.3"                            // will be replaced with ldflag
 	LDFLAG_EXPIRE    = ""                                 // will be replaced with ldflag
 	LDFLAG_GIT       = ""                                 // will be replaced with ldflag
-	LDFLAG_BUILD     = "9999"                             // will be replaced with ldflag
+	LDFLAG_BUILD     = ""                                 // will be replaced with ldflag
 
 	client           *string
 	server           *string
