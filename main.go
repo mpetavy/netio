@@ -235,7 +235,7 @@ func readData(loop int, reader io.Reader) (hash.Hash, int64, time.Duration, erro
 		verboseOutput = cw
 	}
 
-	n, err := common.CopyBufferError(io.CopyBuffer(io.MultiWriter(hasher, writer, verboseOutput), reader, ba))
+	n, err := common.HandleCopyBufferError(io.CopyBuffer(io.MultiWriter(hasher, writer, verboseOutput), reader, ba))
 	if common.Error(err) {
 		return nil, 0, 0, err
 	}
@@ -304,7 +304,7 @@ func sendData(loop int, writer io.Writer) (hash.Hash, int64, time.Duration, erro
 
 	start := time.Now()
 
-	n, err := common.CopyBufferError(io.CopyBuffer(io.MultiWriter(hasher, writer), reader, ba))
+	n, err := common.HandleCopyBufferError(io.CopyBuffer(io.MultiWriter(hasher, writer), reader, ba))
 	if common.Error(err) {
 		return nil, 0, 0, err
 	}
