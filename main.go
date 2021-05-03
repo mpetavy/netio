@@ -44,7 +44,6 @@ var (
 	loopCount        *int
 	loopTimeout      *int
 	loopSleep        *int
-	readySleep       *int
 	hashAlg          *string
 	hashExpected     common.MultiValueFlag
 	randomBytes      *bool
@@ -56,10 +55,6 @@ var (
 	device      string
 	verifyCount int
 	verifyError int
-)
-
-const (
-	READY = "###-READY-###"
 )
 
 func init() {
@@ -78,7 +73,6 @@ func init() {
 	loopCount = flag.Int("lc", 0, "Loop count. Must be defined equaly on client and server side")
 	loopTimeout = flag.Int("lt", 0, "Loop timeout")
 	loopSleep = flag.Int("ls", 0, "Loop sleep between loop steps")
-	readySleep = flag.Int("rs", common.DurationToMillisecond(time.Second), "Sender sleep time before send READY")
 	text = flag.String("t", "", "text to send")
 	verbose = flag.Bool("v", false, "output the received content")
 }
@@ -131,48 +125,6 @@ func closeHasher(loop int, hasher hash.Hash) {
 
 		hasher.Reset()
 	}
-}
-
-func waitForReady(connection io.ReadWriteCloser) error {
-	received := ""
-	ba := make([]byte, len(READY))
-
-	common.Info("Waiting for READY...")
-
-	for {
-		n, err := connection.Read(ba)
-		if err != nil {
-			return err
-		}
-
-		if n > 0 {
-			received = received + string(ba[:n])
-
-			if strings.HasSuffix(received, READY) {
-				common.Info("Received READY")
-
-				break
-			}
-		}
-	}
-
-	return nil
-}
-
-func sendReady(connection io.ReadWriteCloser) error {
-	if *readySleep > 0 {
-		common.Info("Ready sleep: %v", common.MillisecondToDuration(*readySleep))
-
-		time.Sleep(common.MillisecondToDuration(*readySleep))
-	}
-
-	common.Info("Sending READY")
-	_, err := io.Copy(connection, strings.NewReader(READY))
-	if common.Error(err) {
-		return err
-	}
-
-	return nil
 }
 
 type consoleWriter struct {
@@ -335,13 +287,6 @@ func work(loop int, connector common.EndpointConnector) error {
 	}()
 
 	if mustSendData() {
-		if *server != "" {
-			err := waitForReady(connection)
-			if common.Error(err) {
-				return err
-			}
-		}
-
 		hasher, n, duration, err := sendData(loop, connection)
 		if common.Error(err) {
 			return err
@@ -353,13 +298,6 @@ func work(loop int, connector common.EndpointConnector) error {
 	}
 
 	if mustReceiveData() {
-		if *client != "" {
-			err := sendReady(connection)
-			if common.Error(err) {
-				return err
-			}
-		}
-
 		hasher, n, duration, err := readData(loop, connection)
 		if common.Error(err) {
 			return err
