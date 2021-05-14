@@ -23,7 +23,7 @@ if [ -z "$TEAMCITY_VERSION" ]; then
   export LDFLAG_VERSION=1.0.4
   export LDFLAG_EXPIRE=
   export LDFLAG_GIT=$(git rev-parse HEAD)
-  export LDFLAG_BUILD="1234"
+  export LDFLAG_BUILD="1"
 
   export DOCKER_IMAGE=golang:$GO_VERSION
 else
