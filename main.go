@@ -29,7 +29,7 @@ var (
 	LDFLAG_DEVELOPER = "mpetavy"                          // will be replaced with ldflag
 	LDFLAG_HOMEPAGE  = "https://github.com/mpetavy/netio" // will be replaced with ldflag
 	LDFLAG_LICENSE   = common.APACHE                      // will be replaced with ldflag
-	LDFLAG_VERSION   = "1.0.3"                            // will be replaced with ldflag
+	LDFLAG_VERSION   = "1.0.4"                            // will be replaced with ldflag
 	LDFLAG_EXPIRE    = ""                                 // will be replaced with ldflag
 	LDFLAG_GIT       = ""                                 // will be replaced with ldflag
 	LDFLAG_BUILD     = ""                                 // will be replaced with ldflag
@@ -267,13 +267,9 @@ func sendData(loop int, writer io.Writer) (hash.Hash, int64, time.Duration, erro
 }
 
 func calcPerformance(n int64, d time.Duration) string {
-	if d.Seconds() >= 1 {
-		bytesPerSecond := int64(float64(n) / math.Round(d.Seconds()))
+	bytesPerSecond := int64(math.Round(float64(n) / d.Seconds()))
 
-		return fmt.Sprintf("%s/%v", common.FormatMemory(bytesPerSecond), time.Second)
-	} else {
-		return fmt.Sprintf("%s/%v", common.FormatMemory(n), d)
-	}
+	return fmt.Sprintf("%s/%v or %s/%v", common.FormatMemory(n), d.Seconds(),common.FormatMemory(bytesPerSecond), time.Second)
 }
 
 func work(loop int, connector common.EndpointConnector) error {
