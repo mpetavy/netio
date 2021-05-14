@@ -10,7 +10,7 @@ ARG LDFLAG_LICENSE
 ARG LDFLAG_VERSION
 ARG LDFLAG_EXPIRE
 ARG LDFLAG_GIT
-ARG LDFLAG_COUNTER
+ARG LDFLAG_BUILD
 
 RUN echo "LDFLAG_DEVELOPER: $LDFLAG_DEVELOPER" > /tmp/report \
     && echo "LDFLAG_HOMEPAGE: $LDFLAG_HOMEPAGE" >> /tmp/report \
@@ -18,7 +18,7 @@ RUN echo "LDFLAG_DEVELOPER: $LDFLAG_DEVELOPER" > /tmp/report \
     && echo "LDFLAG_VERSION: $LDFLAG_VERSION" >> /tmp/report \
     && echo "LDFLAG_EXPIRE: $LDFLAG_EXPIRE" >> /tmp/report \
     && echo "LDFLAG_GIT: $LDFLAG_GIT" >> /tmp/report \
-    && echo "LDFLAG_COUNTER: $LDFLAG_COUNTER" >> /tmp/report \
+    && echo "LDFLAG_BUILD: $LDFLAG_BUILD" >> /tmp/report \
     && cat /tmp/report \
     && mkdir -p /var/lib/dbus \
     && echo "machine-id" > /var/lib/dbus/machine-id
@@ -43,7 +43,7 @@ RUN mkdir dist-windows-amd64 \
     && export CGO_ENABLED=0 \
     && export GOOS=windows \
     && export GOARCH=amd64 \
-    && go build -mod=vendor -ldflags="-s -w -X main.LDFLAG_DEVELOPER=$LDFLAG_DEVELOPER -X main.LDFLAG_HOMEPAGE=$LDFLAG_HOMEPAGE -X main.LDFLAG_LICENSE=$LDFLAG_LICENSE -X main.LDFLAG_VERSION=$LDFLAG_VERSION -X main.LDFLAG_EXPIRE=$LDFLAG_EXPIRE -X main.LDFLAG_GIT=$LDFLAG_GIT -X main.LDFLAG_COUNTER=$LDFLAG_COUNTER" -o dist-windows-amd64/netio.exe .
+    && go build -mod=vendor -ldflags="-s -w -X main.LDFLAG_DEVELOPER=$LDFLAG_DEVELOPER -X main.LDFLAG_HOMEPAGE=$LDFLAG_HOMEPAGE -X main.LDFLAG_LICENSE=$LDFLAG_LICENSE -X main.LDFLAG_VERSION=$LDFLAG_VERSION -X main.LDFLAG_EXPIRE=$LDFLAG_EXPIRE -X main.LDFLAG_GIT=$LDFLAG_GIT -X main.LDFLAG_BUILD=$LDFLAG_BUILD" -o dist-windows-amd64/netio.exe .
 
 # build Linux-amd64, also with Docker support
 
@@ -59,7 +59,7 @@ RUN mkdir dist-linux-amd64 \
     && export CGO_ENABLED=0 \
     && export GOOS=linux \
     && export GOARCH=amd64 \
-    && go build -mod=vendor -ldflags="-s -w -X main.LDFLAG_DEVELOPER=$LDFLAG_DEVELOPER -X main.LDFLAG_HOMEPAGE=$LDFLAG_HOMEPAGE -X main.LDFLAG_LICENSE=$LDFLAG_LICENSE -X main.LDFLAG_VERSION=$LDFLAG_VERSION -X main.LDFLAG_EXPIRE=$LDFLAG_EXPIRE -X main.LDFLAG_GIT=$LDFLAG_GIT -X main.LDFLAG_COUNTER=$LDFLAG_COUNTER" -o dist-linux-amd64/netio .
+    && go build -mod=vendor -ldflags="-s -w -X main.LDFLAG_DEVELOPER=$LDFLAG_DEVELOPER -X main.LDFLAG_HOMEPAGE=$LDFLAG_HOMEPAGE -X main.LDFLAG_LICENSE=$LDFLAG_LICENSE -X main.LDFLAG_VERSION=$LDFLAG_VERSION -X main.LDFLAG_EXPIRE=$LDFLAG_EXPIRE -X main.LDFLAG_GIT=$LDFLAG_GIT -X main.LDFLAG_BUILD=$LDFLAG_BUILD" -o dist-linux-amd64/netio .
 
 # build and tar for Linux-arm6
 
@@ -69,20 +69,13 @@ RUN mkdir dist-linux-arm6 \
     && export CGO_ENABLED=0 \
     && export GOOS=linux \
     && export GOARCH=arm \
-    && go build -mod=vendor -ldflags="-s -w -X main.LDFLAG_DEVELOPER=$LDFLAG_DEVELOPER -X main.LDFLAG_HOMEPAGE=$LDFLAG_HOMEPAGE -X main.LDFLAG_LICENSE=$LDFLAG_LICENSE -X main.LDFLAG_VERSION=$LDFLAG_VERSION -X main.LDFLAG_EXPIRE=$LDFLAG_EXPIRE -X main.LDFLAG_GIT=$LDFLAG_GIT -X main.LDFLAG_COUNTER=$LDFLAG_COUNTER" -o dist-linux-arm6/netio .
-
-# run  tests
-
-RUN rm -rf /tmp/dist-linux-amd64 \
-    && cp -r dist-linux-amd64 /tmp/
-
-WORKDIR /go/src/netio
+    && go build -mod=vendor -ldflags="-s -w -X main.LDFLAG_DEVELOPER=$LDFLAG_DEVELOPER -X main.LDFLAG_HOMEPAGE=$LDFLAG_HOMEPAGE -X main.LDFLAG_LICENSE=$LDFLAG_LICENSE -X main.LDFLAG_VERSION=$LDFLAG_VERSION -X main.LDFLAG_EXPIRE=$LDFLAG_EXPIRE -X main.LDFLAG_GIT=$LDFLAG_GIT -X main.LDFLAG_BUILD=$LDFLAG_BUILD" -o dist-linux-arm6/netio .
 
 # tar all builds along with netio-tests.html test result file
 
-RUN tar -czvf netio-$LDFLAG_VERSION-$LDFLAG_COUNTER-windows-amd64.tar.gz -C dist-windows-amd64/ . \
-    && tar -czvf netio-$LDFLAG_VERSION-$LDFLAG_COUNTER-linux-amd64.tar.gz -C dist-linux-amd64/ . \
-    && tar -czvf netio-$LDFLAG_VERSION-$LDFLAG_COUNTER-linux-arm6.tar.gz -C dist-linux-arm6/ .
+RUN tar -czvf netio-$LDFLAG_VERSION-$LDFLAG_BUILD-windows-amd64.tar.gz -C dist-windows-amd64/ . \
+    && tar -czvf netio-$LDFLAG_VERSION-$LDFLAG_BUILD-linux-amd64.tar.gz -C dist-linux-amd64/ . \
+    && tar -czvf netio-$LDFLAG_VERSION-$LDFLAG_BUILD-linux-arm6.tar.gz -C dist-linux-arm6/ .
 
 # report artifacts
 
