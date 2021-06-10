@@ -20,7 +20,7 @@ if [ -z "$TEAMCITY_VERSION" ]; then
   export LDFLAG_DEVELOPER=mpetavy
   export LDFLAG_HOMEPAGE=https://github.com/mpetavy/$APP
   export LDFLAG_LICENSE=https://www.apache.org/licenses/LICENSE-2.0.html
-  export LDFLAG_VERSION=1.0.4
+  export LDFLAG_VERSION=1.0.5
   export LDFLAG_EXPIRE=
   export LDFLAG_GIT=$(git rev-parse HEAD)
   export LDFLAG_BUILD="1"
