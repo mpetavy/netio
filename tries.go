@@ -107,8 +107,8 @@ func TryMain() error {
 	rows = append(rows, []string{common.Translate("Settings"), strings.Title(common.Translate("Value"))})
 	rows = append(rows, []string{common.Translate("Title"), strings.Title(common.Title())})
 	rows = append(rows, []string{common.Translate("Version"), strings.Title(common.App().Version)})
-	rows = append(rows, []string{common.Translate("Git"), LDFLAG_GIT})
 	rows = append(rows, []string{common.Translate("Build"), LDFLAG_BUILD})
+	rows = append(rows, []string{common.Translate("Git"), LDFLAG_GIT})
 
 	table := common.NewTable(page.HtmlContent.CreateElement("center"), rows)
 	table.CreateAttr("border", "1")
