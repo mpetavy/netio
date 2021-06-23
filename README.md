@@ -1,4 +1,4 @@
-# NETIO documentation v1.0.2
+# NETIO documentation v1.0.6
 
 ## Document Version
 
@@ -7,6 +7,7 @@ Version | Date | Author | Description
 1.0.0 | 15.09.2020 | mpetavy | Initial release
 1.0.1 | 21.09.2020 | mpetavy | Added more samples. connection role, data role
 1.0.2 | 25.09.2020 | mpetavy | Added more samples.
+1.0.6 | 23.06.2021 | mpetavy | Runtime parameters updated
 
 ## Description
 
@@ -85,7 +86,7 @@ implementation: https://boringssl.googlesource.com/boringssl/
 
 NETIO is developed with the Google GO tooling.
 
-Current used version 1.15.2
+Current used version 1.16.5
 
 By using the GO programming language (https://golang.org) multiple architectures and OS are supported. You can find a
 complete list of all supported architectures and OS at https://github.com/golang/go/blob/master/src/go/build/syslist.go
@@ -247,40 +248,54 @@ Shortage of the parameter definition is support, so for not defined parameter th
 
 ## Runtime parameter
 
-Here you find the complete list of NETIO runtime parameters. Please substitute default filename parameters with the
-prefix "/home/ransom/go/src/NETIO" with your installaton directory of NETIO.
-
-Parameter | Default value | Description
------------- | ------------- | -------------
-? | false | show usage
-backup.count | 3 | amount of file backups
-bs | 32K | Buffer size in bytes
-c |  | Client address/serial port
-cfg.file | D:\go\src\netio\netio.json | Configuration file
-cfg.reset | false | Reset configuration file
-dr | false | Act as data receiver
-ds | false | Act as data sender
-e |  | Expected hash value(s)
-f |  | Filename(s) to write to (server) or read from (client)
-h | md5 | Hash algorithm (md5, sha224, sha256)
-language | en | language for messages
-lc | 0 | Loop count. Must be defined equaly on client and server side
-log.file |  | filename to log logFile (use "." for D:\go\src\netio\netio.log)
-log.filesize | 5242880 | max log file size
-log.io | false | trace logging
-log.json | false | JSON output
-log.verbose | false | verbose logging
-ls | 0 | Loop sleep between loop steps
-lt | 0 | Loop timeout
-nb | false | no copyright banner
-r | false | Send random bytes (or '0' bytes)
-rs | 1000 | Sender sleep time before send READY
-s |  | Server address/serial port
-tls | false | Use TLS
-tls.insecure | false | Use insecure TLS versions and ciphersuites
-tls.p12 |  | TLS PKCS12 certificates & privkey container stream (P12,Base64 format)
-tls.p12file |  | TLS PKCS12 certificates & privkey container file (P12 format)
-tls.verify | false | TLS verification
+Parameter | Default value | Only CmdLine | Description
+------------ | ------------- | ------------- | -------------
+? | false |  | show flags description and usage
+?md | false |  | show flags description and usage in markdown format
+app.language | en |  | language for messages
+app.product |  |  | app product
+bs | 32K |  | Buffer size in bytes
+c |  |  | Client network address or TTY port
+cfg.create | false | * | Reset configuration file and exit
+cfg.file | ./netio.json | * | Configuration file
+cfg.reset | false | * | Reset configuration file
+dr | false |  | Act as data receiver
+ds | false |  | Act as data sender
+e |  |  | Expected hash value(s)
+f |  |  | Filename(s) to write to (server) or read from (client)
+h | md5 |  | Hash algorithm (md5, sha224, sha256)
+io.file.backups | 3 |  | amount of file backups
+io.network.timeout | 3000 |  | network server and client dial timeout
+lc | 0 |  | Loop count. Must be defined equaly on client and server side
+log.file |  |  | filename to log logFile (use "." for /home/ransom/go/src/netio/netio.log)
+log.filesize | 5242880 |  | max log file size
+log.io | false |  | trace logging
+log.json | false |  | JSON output
+log.sys | false |  | Use OS system logger
+log.verbose | false |  | verbose logging
+ls | 0 |  | Loop sleep between loop steps
+lt | 0 |  | Loop timeout
+nb | false |  | no copyright banner
+r | true |  | Send random bytes or zero bytes
+s |  |  | Server network address or TTY port
+service |  |  | Service operation (simulate,start,stop,restart,install,uninstall)
+service.password |  |  | Service password
+service.timeout | 1000 |  | Service timeout
+service.username |  |  | Service user
+t |  |  | text to send
+test | false | * | Run tests
+test.devices |  | * | Two TTY devices to run transfer tests separated by a dash (i.e. "COM3-COM3"
+tls | false |  | Use TLS
+tls.certificate |  |  | Server TLS PKCS12 certificates & privkey container file or buffer
+tls.ciphers |  |  | TLS ciphers zo use
+tls.insecure | false |  | Use insecure TLS versions and cipher suites
+tls.maxversion | TLS1.3 |  | TLS max version
+tls.minversion | TLS1.2 |  | TLS min version
+tls.mutual |  |  | Mutual TLS PKCS12 certificates & privkey container file or buffer
+tls.password | changeit |  | TLS PKCS12 certificates & privkey container file (P12 format)
+tls.servername | .* |  | TLS expected servername
+tls.verify | false |  | Verify TLS certificates and server name
+v | false |  | output the received content
 
 ## Samples
 
