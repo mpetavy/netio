@@ -250,8 +250,6 @@ Shortage of the parameter definition is support, so for not defined parameter th
 
 Parameter | Default value | Only CmdLine | Description
 ------------ | ------------- | ------------- | -------------
-? | false |  | show flags description and usage
-?md | false |  | show flags description and usage in markdown format
 app.language | en |  | language for messages
 app.product |  |  | app product
 bs | 32K |  | Buffer size in bytes
@@ -263,7 +261,8 @@ dr | false |  | Act as data receiver
 ds | false |  | Act as data sender
 e |  |  | Expected hash value(s)
 f |  |  | Filename(s) to write to (server) or read from (client)
-h | md5 |  | Hash algorithm (md5, sha224, sha256)
+h | false | * | show flags description and usage
+hmd | false | * | show flags description and usage in markdown format
 io.file.backups | 3 |  | amount of file backups
 io.network.timeout | 3000 |  | network server and client dial timeout
 lc | 0 |  | Loop count. Must be defined equaly on client and server side
@@ -296,6 +295,7 @@ tls.password | changeit |  | TLS PKCS12 certificates & privkey container file (P
 tls.servername | .* |  | TLS expected servername
 tls.verify | false |  | Verify TLS certificates and server name
 v | false |  | output the received content
+y | md5 |  | Hash algorithm (md5, sha224, sha256)
 
 ## Samples
 

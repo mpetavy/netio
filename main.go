@@ -66,7 +66,7 @@ func init() {
 	useTls = flag.Bool("tls", false, "Use TLS")
 	isDataSender = flag.Bool("ds", false, "Act as data sender")
 	isDataReceiver = flag.Bool("dr", false, "Act as data receiver")
-	hashAlg = flag.String("h", "md5", "Hash algorithm (md5, sha224, sha256)")
+	hashAlg = flag.String("y", "md5", "Hash algorithm (md5, sha224, sha256)")
 	flag.Var(&hashExpected, "e", "Expected hash value(s)")
 	randomBytes = flag.Bool("r", true, "Send random bytes or zero bytes")
 	bufferSizeString = flag.String("bs", "32K", "Buffer size in bytes")
