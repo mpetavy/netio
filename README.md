@@ -1,4 +1,4 @@
-# NETIO documentation v1.0.6
+# NETIO documentation v1.0.7
 
 ## Document Version
 
@@ -7,7 +7,7 @@ Version | Date | Author | Description
 1.0.0 | 15.09.2020 | mpetavy | Initial release
 1.0.1 | 21.09.2020 | mpetavy | Added more samples. connection role, data role
 1.0.2 | 25.09.2020 | mpetavy | Added more samples.
-1.0.6 | 23.06.2021 | mpetavy | Runtime parameters updated
+1.0.7 | 23.06.2021 | mpetavy | Runtime parameters updated
 
 ## Description
 
