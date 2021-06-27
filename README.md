@@ -1,4 +1,4 @@
-# NETIO documentation v1.0.7
+# NETIO documentation v1.0.8
 
 ## Document Version
 
@@ -7,7 +7,7 @@ Version | Date | Author | Description
 1.0.0 | 15.09.2020 | mpetavy | Initial release
 1.0.1 | 21.09.2020 | mpetavy | Added more samples. connection role, data role
 1.0.2 | 25.09.2020 | mpetavy | Added more samples.
-1.0.7 | 23.06.2021 | mpetavy | Runtime parameters updated
+1.0.8 | 23.06.2021 | mpetavy | Runtime parameters updated
 
 ## Description
 
@@ -263,8 +263,9 @@ e |  |  | Expected hash value(s)
 f |  |  | Filename(s) to write to (server) or read from (client)
 h | false | * | show flags description and usage
 hmd | false | * | show flags description and usage in markdown format
+io.connect.timeout | 3000 |  | network server and client dial timeout
 io.file.backups | 3 |  | amount of file backups
-io.network.timeout | 3000 |  | network server and client dial timeout
+io.readwrite.timeout | 1800000 |  | network read/write timeout
 lc | 0 |  | Loop count. Must be defined equaly on client and server side
 log.file |  |  | filename to log logFile (use "." for /home/ransom/go/src/netio/netio.log)
 log.filesize | 5242880 |  | max log file size
@@ -288,6 +289,7 @@ tls | false |  | Use TLS
 tls.certificate |  |  | Server TLS PKCS12 certificates & privkey container file or buffer
 tls.ciphers |  |  | TLS ciphers zo use
 tls.insecure | false |  | Use insecure TLS versions and cipher suites
+tls.keylen | 2048 |  | RSA key length
 tls.maxversion | TLS1.3 |  | TLS max version
 tls.minversion | TLS1.2 |  | TLS min version
 tls.mutual |  |  | Mutual TLS PKCS12 certificates & privkey container file or buffer
