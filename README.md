@@ -266,6 +266,7 @@ hmd | false | * | show flags description and usage in markdown format
 io.connect.timeout | 3000 |  | network server and client dial timeout
 io.file.backups | 3 |  | amount of file backups
 io.readwrite.timeout | 1800000 |  | network read/write timeout
+l | 0 |  | Amount of bytes to send
 lc | 0 |  | Loop count. Must be defined equaly on client and server side
 log.file |  |  | filename to log logFile (use "." for /home/ransom/go/src/netio/netio.log)
 log.filesize | 5242880 |  | max log file size

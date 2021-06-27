@@ -50,11 +50,13 @@ var (
 	bufferSize       int64
 	text             *string
 	verbose          *bool
+	lengthString     *string
 
 	isClient    bool
 	device      string
 	verifyCount int
 	verifyError int
+	length      int64
 )
 
 func init() {
@@ -75,6 +77,15 @@ func init() {
 	loopSleep = flag.Int("ls", 0, "Loop sleep between loop steps")
 	text = flag.String("t", "", "text to send")
 	verbose = flag.Bool("v", false, "output the received content")
+	lengthString = flag.String("l", "0", "Amount of bytes to send")
+
+	common.Events.NewFuncReceiver(common.EventFlagsParsed{}, func(event common.Event) {
+		var err error
+
+		length, err = common.ParseMemory(*lengthString)
+
+		common.Panic(err)
+	})
 }
 
 func mustSendData() bool {
@@ -174,7 +185,9 @@ func readData(loop int, reader io.Reader) (hash.Hash, int64, time.Duration, erro
 
 	ba := make([]byte, bufferSize)
 
-	reader = common.NewTimeoutReader(reader, common.MillisecondToDuration(*loopTimeout), false)
+	if *loopTimeout > 0 {
+		reader = common.NewTimeoutReader(reader, common.MillisecondToDuration(*loopTimeout), false)
+	}
 
 	timeoutReader := reader.(*common.TimeoutReader)
 
@@ -254,6 +267,10 @@ func sendData(loop int, writer io.Writer) (hash.Hash, int64, time.Duration, erro
 		reader = common.NewDeadlineReader(reader, common.MillisecondToDuration(*loopTimeout))
 	}
 
+	if length > 0 {
+		reader = common.NewSizedReader(reader, length)
+	}
+
 	start := time.Now()
 
 	n, err := common.HandleCopyBufferError(io.CopyBuffer(io.MultiWriter(hasher, writer), reader, ba))
@@ -269,7 +286,7 @@ func sendData(loop int, writer io.Writer) (hash.Hash, int64, time.Duration, erro
 func calcPerformance(n int64, d time.Duration) string {
 	bytesPerSecond := int64(math.Round(float64(n) / d.Seconds()))
 
-	return fmt.Sprintf("%s/%v or %s/%v", common.FormatMemory(n), d.Seconds(), common.FormatMemory(bytesPerSecond), time.Second)
+	return fmt.Sprintf("%s/%.2fs or %s/%v", common.FormatMemory(n), d.Seconds(), common.FormatMemory(bytesPerSecond), time.Second)
 }
 
 func work(loop int, connector common.EndpointConnector) error {
@@ -288,7 +305,7 @@ func work(loop int, connector common.EndpointConnector) error {
 			return err
 		}
 
-		common.Info("Bytes sent: %s", calcPerformance(n, duration))
+		common.Info("Bytes sent: about %s", calcPerformance(n, duration))
 
 		closeHasher(loop, hasher)
 	}
@@ -299,7 +316,7 @@ func work(loop int, connector common.EndpointConnector) error {
 			return err
 		}
 
-		common.Info("Bytes received: %s", calcPerformance(n, duration))
+		common.Info("Bytes received: about %s", calcPerformance(n, duration))
 
 		closeHasher(loop, hasher)
 	}
@@ -332,8 +349,10 @@ func start() error {
 	}
 
 	if mustSendData() {
-		if *loopTimeout == 0 {
-			*loopTimeout = 1000
+		if length == 0 {
+			if *loopTimeout == 0 {
+				*loopTimeout = 1000
+			}
 		}
 
 		if *loopSleep == 0 {
@@ -448,11 +467,6 @@ func stop() error {
 
 func main() {
 	defer common.Done()
-
-	//flag.VisitAll(func(fl *flag.Flag) {
-	//	fmt.Printf("%s | %s | %s\n", fl.Name, fl.DefValue, fl.Usage)
-	//})
-	//os.Exit(0)
 
 	common.Run([]string{"c|s"})
 }
