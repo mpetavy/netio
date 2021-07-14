@@ -13,7 +13,7 @@ git rev-parse HEAD >/tmp/GIT_TAG.txt
 read GIT_TAG </tmp/GIT_TAG.txt
 
 if [ -z "$GO_VERSION" ]; then
-  export GO_VERSION="1.16.5"
+  export GO_VERSION="1.16.6"
 fi
 
 if [ -z "$TEAMCITY_VERSION" ]; then
