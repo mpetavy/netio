@@ -84,7 +84,7 @@ func TryMain() error {
 		hostname = "<na>"
 	}
 
-	addrs, err := common.GetHostAddrs(true, nil)
+	addrs, err := common.GetHostAddrs(true, false, nil)
 
 	ips := make([]string, 0)
 
