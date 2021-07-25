@@ -1,4 +1,4 @@
-# NETIO documentation v1.0.8
+# NETIO documentation v1.0.3
 
 ## Document Version
 
@@ -7,7 +7,7 @@ Version | Date | Author | Description
 1.0.0 | 15.09.2020 | mpetavy | Initial release
 1.0.1 | 21.09.2020 | mpetavy | Added more samples. connection role, data role
 1.0.2 | 25.09.2020 | mpetavy | Added more samples.
-1.0.8 | 23.06.2021 | mpetavy | Runtime parameters updated
+1.0.3 | 23.06.2021 | mpetavy | Runtime parameters updated
 
 ## Description
 
@@ -20,13 +20,16 @@ The following feature set is supported:
 * Looping rounds with timeout or file transfer
 * MD5, SHA224 or SHA256 Hash digest calculation and verification
 
-* Two NETO sessions must running to test data transfer, a client (-c) which sends data and a server (-s) which receives and verifies data.
-* By using "-dr" and "-ds" the client still connects to the server but this time the server sends test data and the client verifies data
+* Two NETO sessions must running to test data transfer, a client (-c) which sends data and a server (-s) which receives
+  and verifies data.
+* By using "-dr" and "-ds" the client still connects to the server but this time the server sends test data and the
+  client verifies data
 * Both the client and server calculate on their own a hash digest of the sent and received data.
 * The data receiving endpoint can be configured to verify the hash digest with a defined value (-e).
 * Data can be zero bytes (default), random bytes (-r) or the content of a file(s) (-f).
 * The received data can be dumped on the data receiving endpoint to a file (-f).
-* The data receiving endpoint can be breaked by CTRL-C. On that it gives the result of runned loops and the amount of correct/rroneous data transfers
+* The data receiving endpoint can be breaked by CTRL-C. On that it gives the result of runned loops and the amount of
+  correct/rroneous data transfers
 * If no file content for transfer is provided then each loop step is limited in default to 1 sec. (-lt)
 * If a file content for transfer is provided then each loop step transfers the data without limitations
 
@@ -51,25 +54,28 @@ The default data role can be changed with the "-ds" or "-dr" parameter.
 
 With a network connection the end of data transfer can be recognized either by a EOF data or network disconnection.
 
-If you send data via a serial port then this data is either consumed (by a connected other serial port) or just vanishes to the unknown.
+If you send data via a serial port then this data is either consumed (by a connected other serial port) or just vanishes
+to the unknown.
 
-In order to recognize a chunk of data which is transfered over a serial line there must some event which defines the end of a data chunk. This event is in
-default a timeout elapsing after the last byte of the chunk where not any data is transfered. By that the consuming partner recognized the end of transfer of a
-data chunk.
+In order to recognize a chunk of data which is transfered over a serial line there must some event which defines the end
+of a data chunk. This event is in default a timeout elapsing after the last byte of the chunk where not any data is
+transfered. By that the consuming partner recognized the end of transfer of a data chunk.
 
 For the sending partner the parameter "-ls" defines the time to sleep between two transfers.
 
-For the receiving partner the parameter "-lt" defines the timeout (where no data must be received) after which a transfer is recognized as to be completed. Each
-additional data receiving reset this timeout.
+For the receiving partner the parameter "-lt" defines the timeout (where no data must be received) after which a
+transfer is recognized as to be completed. Each additional data receiving reset this timeout.
 
 Parameter "-ls" must always be greater as parameter -lt"
 
-if you leave the "-ls" and "-lt" parameter undefined then the correct values are automatically calculated depending on the current data role.
+if you leave the "-ls" and "-lt" parameter undefined then the correct values are automatically calculated depending on
+the current data role.
 
 ## TLS data encryption
 
-NETIO supports TLS data encryption by version TLS 1.0 - TLS 1.3. By setting "-tls" a self signed certificate is automaticaly generated for the server side.
-Client connects with "-tls" also via TLS. Server verification is disable in default. Can be activated "-tls.verify"
+NETIO supports TLS data encryption by version TLS 1.0 - TLS 1.3. By setting "-tls" a self signed certificate is
+automaticaly generated for the server side. Client connects with "-tls" also via TLS. Server verification is disable in
+default. Can be activated "-tls.verify"
 
 Support for TLS 1.0 and TLS 1.1 is disabled in default ut can be enabled via "-tls.insecure".
 
@@ -82,8 +88,8 @@ NETIO is developed with the Google GO tooling.
 
 Current used version 1.16.6
 
-By using the GO programming language (https://golang.org) multiple architectures and OS are supported. You can find a complete list of all supported
-architectures and OS at https://github.com/golang/go/blob/master/src/go/build/syslist.go
+By using the GO programming language (https://golang.org) multiple architectures and OS are supported. You can find a
+complete list of all supported architectures and OS at https://github.com/golang/go/blob/master/src/go/build/syslist.go
 
 Currently these environments are tested in development
 
@@ -96,25 +102,30 @@ Currently these environments are tested in development
 
 Before NETIO can be compiled please make sure the following tasks in this order.
 
-1. i18n and opensource license files. To generate those files please execute inside the NETIO source code folder the following command "go run . -codegen".
+1. i18n and opensource license files. To generate those files please execute inside the NETIO source code folder the
+   following command "go run . -codegen".
     1. This generates an updated "static/netio.i18n" file with all i18n strings inside the NETIO source code files.
-    1. This generates an updated "static/netio-opensource.json" file with an listing if all used opensource modules along with their license infos.
-1. BINPACK resources. All resources of NETIO must be transpiled to "binpack" source code files in order to be compiled statically to the NETIO executable. For
-   that please use the BINPACK executable (https://github.com/mpetavy/binpack). Execute the transpile with the command "binoack -i static" inside the NETIO
-   source code folder. After successfull execution an updated GO soource code file "binpack.go" is generated.
-1. "vendor.tar.gz" file. When NETIO is compiled with Docker the compilation process uses GO's feature of "vendor"ing, That means the GO compiler in the Docker
-   build does not use the standard GOPATH directory for 3d party modules source code files but uses the "vendor" directory in the NETIO source code folder.
-   The "vendor" is generated automatically in the Docker build by untaring the TAR file "vendor.tag.gz". To update the "vendor.tar.gz" file to match the latest
+    1. This generates an updated "static/netio-opensource.json" file with an listing if all used opensource modules
+       along with their license infos.
+1. BINPACK resources. All resources of NETIO must be transpiled to "binpack" source code files in order to be compiled
+   statically to the NETIO executable. For that please use the BINPACK executable (https://github.com/mpetavy/binpack).
+   Execute the transpile with the command "binoack -i static" inside the NETIO source code folder. After successfull
+   execution an updated GO soource code file "binpack.go" is generated.
+1. "vendor.tar.gz" file. When NETIO is compiled with Docker the compilation process uses GO's feature of "vendor"ing,
+   That means the GO compiler in the Docker build does not use the standard GOPATH directory for 3d party modules source
+   code files but uses the "vendor" directory in the NETIO source code folder. The "vendor" is generated automatically
+   in the Docker build by untaring the TAR file "vendor.tag.gz". To update the "vendor.tar.gz" file to match the latest
    GO modules in the GOPATH of the development environment the batch job "update-vendor.bat" can be used.
 
 ## Build with Docker
 
-NETIO can be built either by the BUILD.SH (Linux) or BUILD.BAT (Windows) batch jobs. The Build uses Docker to generate an Image in which the complete packages
-for Windows and Linux are generated.
+NETIO can be built either by the BUILD.SH (Linux) or BUILD.BAT (Windows) batch jobs. The Build uses Docker to generate
+an Image in which the complete packages for Windows and Linux are generated.
 
 This is done by using GO's built-in feature to do cross-compiling to any supported plattform inside the Docker images.
 
-After the docker image creatiion a temporaty docker container is built from which the following 3 software packages are extracted:
+After the docker image creatiion a temporaty docker container is built from which the following 3 software packages are
+extracted:
 
 Sample for Version "1.0.0" and Build number "1234":
 
@@ -140,16 +151,18 @@ To build a binary executable for your preferred OS please do the following:
 1. Clone the netio repository
 1. CD into the "netio" directory
 1. Build:
-    1. If you would like to cross compile to an other OS/architecture define the env variable GOOS and GOARCH along to the values defined
-       here https://github.com/golang/go/blob/master/src/go/build/syslist.go
+    1. If you would like to cross compile to an other OS/architecture define the env variable GOOS and GOARCH along to
+       the values defined here https://github.com/golang/go/blob/master/src/go/build/syslist.go
     1. Build NETIO by "go install". Multiple dependent modules will be downloaded during the build
     1. After a successful build you will find the NETIO executable in the "GOPATH\bin" directory
 
 ## Installation as application
 
-Like all other GO based application there is only the file `netio.exe` or `netio` which contains the complete application.
+Like all other GO based application there is only the file `netio.exe` or `netio` which contains the complete
+application.
 
-Just copy this executable into any installation directory you would like. Start the application by calling the executable `netio.exe` or `./netio`
+Just copy this executable into any installation directory you would like. Start the application by calling the
+executable `netio.exe` or `./netio`
 
 ## Installation as OS service
 
@@ -188,8 +201,8 @@ docker-compose-up.bat" and "docker-compose-down.bat". Here a sample Dockerfile:
 
 ## Running NETIO with Linux Container (LXC)
 
-The Linux amd64 package containes everything for running NETIO with Linux container (LXC). Here a sample script to setup and install NETIO inside a Linux
-container based on Debian. Finally the LXC is exported to a tar.gz file.
+The Linux amd64 package containes everything for running NETIO with Linux container (LXC). Here a sample script to setup
+and install NETIO inside a Linux container based on Debian. Finally the LXC is exported to a tar.gz file.
 
 * Used LXC version is 4.0.0 (compatible 2.x+)
 * LXC container name is 'NETIO'
@@ -289,8 +302,9 @@ y | md5 |  | Hash algorithm (md5, sha224, sha256)
 
 ## Samples
 
-Here some usage samples. It is assumed that /dev/ttyUSB0 and /dev/ttyUSB1 are connected with a serial cable. Client and Server can run on the same machine or
-different machines. The samples are showing the both commands which must be executed.
+Here some usage samples. It is assumed that /dev/ttyUSB0 and /dev/ttyUSB1 are connected with a serial cable. Client and
+Server can run on the same machine or different machines. The samples are showing the both commands which must be
+executed.
 
     netio -s :15000 -tls
     netio -c :15000 -tls
