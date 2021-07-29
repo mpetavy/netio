@@ -80,6 +80,10 @@ func init() {
 	lengthString = flag.String("l", "0", "Amount of bytes to send")
 
 	common.Events.NewFuncReceiver(common.EventFlagsParsed{}, func(event common.Event) {
+		if *server != "" && !common.IsRunningAsService() {
+			common.Panic(flag.Set(common.FlagNameService, common.SERVICE_SIMULATE))
+		}
+
 		var err error
 
 		length, err = common.ParseMemory(*lengthString)
