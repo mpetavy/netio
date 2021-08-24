@@ -75,6 +75,7 @@ if [ -z "$TEAMCITY_VERSION" ]; then
   rm -rf /tmp/context
 
   if [ ! -z "$DOCKER_USERNAME" ]; then
+    docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
     docker push mpetavy/$APP-app
   fi
 fi
