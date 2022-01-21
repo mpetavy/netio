@@ -2,6 +2,6 @@ module netio
 
 go 1.16
 
-require github.com/mpetavy/common v1.4.3
+require github.com/mpetavy/common v1.4.4
 
 //replace github.com/mpetavy/common => ../common
