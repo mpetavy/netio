@@ -288,9 +288,14 @@ func sendData(loop int, writer io.Writer) (hash.Hash, int64, time.Duration, erro
 }
 
 func calcPerformance(n int64, d time.Duration) string {
-	bytesPerSecond := int64(math.Round(float64(n) / d.Seconds()))
+	if d > 0 {
+		bytesPerSecond := int64(math.Round(float64(n) / d.Seconds()))
 
-	return fmt.Sprintf("%s/%.2fs or %s/%v", common.FormatMemory(n), d.Seconds(), common.FormatMemory(bytesPerSecond), time.Second)
+		return fmt.Sprintf("%s/%.2fs or %s/%v", common.FormatMemory(n), d.Seconds(), common.FormatMemory(bytesPerSecond), time.Second)
+	} else {
+		return fmt.Sprintf("%s/%.2fs", common.FormatMemory(n), d.Seconds())
+	}
+
 }
 
 func work(loop int, connector common.EndpointConnector) error {
@@ -365,37 +370,11 @@ func start() error {
 	}
 
 	if *loopCount == 0 {
-		if *text != "" {
-			*loopCount = 1
+		if len(filenames) > 0 {
+			*loopCount = len(filenames)
 		} else {
-			if len(filenames) > 0 {
-				*loopCount = len(filenames)
-			} else {
-				if len(hashExpected) > 0 {
-					*loopCount = len(hashExpected)
-				}
-			}
-		}
-	}
-
-	for _, filename := range filenames {
-		if mustSendData() {
-			if !common.FileExists(filename) {
-				err := &common.ErrFileNotFound{FileName: filename}
-
-				common.Error(err)
-
-				return err
-			}
-		}
-
-		if mustReceiveData() {
-			if !common.FileExists(filename) {
-				err := &common.ErrFileAlreadyExists{FileName: filename}
-
-				common.Error(err)
-
-				return err
+			if len(hashExpected) > 0 {
+				*loopCount = len(hashExpected)
 			}
 		}
 	}
@@ -437,15 +416,17 @@ func run() error {
 	}()
 
 	for loop := 0; (*loopCount == 0) || (loop < *loopCount); loop++ {
-		common.Info("")
-		common.Info("Loop #%v", loop+1)
+		if *loopCount > 1 {
+			common.Info("")
+			common.Info("Loop #%v", loop+1)
+		}
 
 		err = work(loop, connector)
 		if common.Error(err) {
 			return err
 		}
 
-		if mustSendData() && *loopSleep > 0 && (*loopCount == 0) || ((loop + 1) < *loopCount) {
+		if mustSendData() && *loopSleep > 0 && (loop+1) < *loopCount {
 			common.Info("Loop sleep: %v", common.MillisecondToDuration(*loopSleep))
 
 			time.Sleep(common.MillisecondToDuration(*loopSleep))
