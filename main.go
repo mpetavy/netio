@@ -72,7 +72,7 @@ func init() {
 	flag.Var(&hashExpected, "e", "Expected hash value(s)")
 	randomBytes = flag.Bool("r", true, "Send random bytes or zero bytes")
 	bufferSizeString = flag.String("bs", "32K", "Buffer size in bytes")
-	loopCount = flag.Int("lc", 0, "Loop count. Must be defined equaly on client and server side")
+	loopCount = flag.Int("lc", 1, "Loop count. Must be defined equaly on client and server side")
 	loopTimeout = flag.Int("lt", 0, "Loop timeout")
 	loopSleep = flag.Int("ls", 0, "Loop sleep between loop steps")
 	text = flag.String("t", "", "text to send")
