@@ -416,17 +416,15 @@ func run() error {
 	}()
 
 	for loop := 0; (*loopCount == 0) || (loop < *loopCount); loop++ {
-		if *loopCount > 1 {
-			common.Info("")
-			common.Info("Loop #%v", loop+1)
-		}
+		common.Info("")
+		common.Info("Loop #%v", loop+1)
 
 		err = work(loop, connector)
 		if common.Error(err) {
 			return err
 		}
 
-		if mustSendData() && *loopSleep > 0 && (loop+1) < *loopCount {
+		if mustSendData() && *loopSleep > 0 && ((*loopCount == 0) || ((loop + 1) < *loopCount)) {
 			common.Info("Loop sleep: %v", common.MillisecondToDuration(*loopSleep))
 
 			time.Sleep(common.MillisecondToDuration(*loopSleep))
