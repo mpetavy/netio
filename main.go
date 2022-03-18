@@ -416,8 +416,10 @@ func run() error {
 	}()
 
 	for loop := 0; (*loopCount == 0) || (loop < *loopCount); loop++ {
-		common.Info("")
-		common.Info("Loop #%v", loop+1)
+		if *loopCount != 1 {
+			common.Info("")
+			common.Info("Loop #%v", loop+1)
+		}
 
 		err = work(loop, connector)
 		if common.Error(err) {
