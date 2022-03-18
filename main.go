@@ -325,7 +325,7 @@ func work(loop int, connector common.EndpointConnector) error {
 			return err
 		}
 
-		common.Info("Bytes received: % bytes, about %s", n, calcPerformance(n, duration))
+		common.Info("Bytes received: %d bytes, about %s", n, calcPerformance(n, duration))
 
 		closeHasher(loop, hasher)
 	}
