@@ -1,9 +1,0 @@
-version: '3'
-services:
-  netio:
-    container_name: netio
-    build: .
-    image: netio:latest
-    ports:
-      - "5000-10000:5000-10000"
-    network_mode: bridge
