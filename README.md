@@ -1,13 +1,4 @@
-# NETIO documentation v1.0.3
-
-## Document Version
-
-Version | Date | Author | Description
------------- | ------------ | ------------- | -------------
-1.0.0 | 15.09.2020 | mpetavy | Initial release
-1.0.1 | 21.09.2020 | mpetavy | Added more samples. connection role, data role
-1.0.2 | 25.09.2020 | mpetavy | Added more samples.
-1.0.3 | 23.06.2021 | mpetavy | Runtime parameters updated
+# NETIO documentation
 
 ## Description
 
@@ -15,6 +6,7 @@ NETIO is a performance testing tool for network or serial connections.
 
 The following feature set is supported:
 
+* Works with IP networks or serial lines
 * With or without TLS usage
 * Zero bytes, random bytes or file transfer
 * Looping rounds with timeout or file transfer
@@ -82,22 +74,6 @@ Support for TLS 1.0 and TLS 1.1 is disabled in default ut can be enabled via "-t
 NETIO TLS implementation is done by the GO default "BoringSSL"
 implementation: https://boringssl.googlesource.com/boringssl/
 
-## GO development
-
-NETIO is developed with the Google GO tooling.
-
-Current used version 1.16.7
-
-By using the GO programming language (https://golang.org) multiple architectures and OS are supported. You can find a
-complete list of all supported architectures and OS at https://github.com/golang/go/blob/master/src/go/build/syslist.go
-
-Currently these environments are tested in development
-
-* Linux (x86_64)
-    * Manjaro on x86_64 based PC https://www.manjaro.org
-    * Raspian on ARM7 based Raspberry Pi Model 3 Model B+ https://www.raspberrypi.org/downloads/raspbian
-* Windows 10 (x86_64)
-
 ## Compiling NETIO
 
 Before NETIO can be compiled please make sure the following tasks in this order.
@@ -117,29 +93,11 @@ Before NETIO can be compiled please make sure the following tasks in this order.
    in the Docker build by untaring the TAR file "vendor.tag.gz". To update the "vendor.tar.gz" file to match the latest
    GO modules in the GOPATH of the development environment the batch job "update-vendor.bat" can be used.
 
-## Build with Docker
-
-NETIO can be built either by the BUILD.SH (Linux) or BUILD.BAT (Windows) batch jobs. The Build uses Docker to generate
-an Image in which the complete packages for Windows and Linux are generated.
-
-This is done by using GO's built-in feature to do cross-compiling to any supported plattform inside the Docker images.
-
-After the docker image creatiion a temporaty docker container is built from which the following 3 software packages are
-extracted:
-
-Sample for Version "1.0.0" and Build number "1234":
-
-* netio-1.0.0-1234-linux-amd64.tar.gz
-* netio-1.0.0-1234-linux-arm6.tar.gz
-* netio-1.0.0-1234-windows-amd64.tar.gz
-
-Those software packages containes everything for running NETIO on the defined platform.
-
-## Build manual
+## Build
 
 To build a binary executable for your preferred OS please do the following:
 
-1. Install the GO programming language support (http://golang.org)
+1. Install the GO programming language support (http://go.dev)
 1. configure your OS env environment with the mandatory GO variables
     1. GOROOT (points to your <GO installation directory>)
     1. GOPATH (points to your <GO development direcotry root>)
@@ -178,52 +136,6 @@ Follow the instructions "Installation as application". To register NETIO as an O
     1. Windows: `netio -service uninstall`
     1. Linux: `./netio -service uninstall`
 
-## Running NETIO with Docker
-
-The Linux amd64 package containes everything for running NETIO with Docker. Just use the provided "
-docker-compose-up.bat" and "docker-compose-down.bat". Here a sample Dockerfile:
-
-    FROM alpine:latest
-    RUN mkdir /app
-    WORKDIR /app
-    COPY ./NETIO .
-    EXPOSE 8443 15000-15050
-    EXPOSE 15000/udp
-    RUN apk --no-cache update \
-        && apk --no-cache upgrade \
-        && apk --no-cache add ca-certificates \
-        && apk --no-cache add dbus \
-        && apk --no-cache add tzdata \
-        && cp /usr/share/zoneinfo/Europe/Berlin /etc/localtime \
-        && echo "Europe/Berlin" >  /etc/timezone \
-        && dbus-uuidgen > /var/lib/dbus/machine-id
-    ENTRYPOINT /app/NETIO
-
-## Running NETIO with Linux Container (LXC)
-
-The Linux amd64 package containes everything for running NETIO with Linux container (LXC). Here a sample script to setup
-and install NETIO inside a Linux container based on Debian. Finally the LXC is exported to a tar.gz file.
-
-* Used LXC version is 4.0.0 (compatible 2.x+)
-* LXC container name is 'NETIO'
-* NETIO is installed as service 'NETIO.service'
-* NETIO service is enabled and started
-* Assuming that the executable file "NETIO" ist in the current path.
-
-Content of the file 'lxc.sh':
-
-    #/bin/sh
-    # lxc delete debian-netio --force
-    lxc launch images:debian/10 debian-netio
-    lxc exec debian-netio -- mkdir /opt/netio
-    lxc file push netio debian-netio/opt/netio/
-    lxc exec debian-netio -- /opt/netio/netio -log.verbose -service install
-    lxc exec debian-netio -- systemctl enable netio.service
-    lxc exec debian-netio -- systemctl start netio.service
-    lxc export debian-netio lxc-debian-netio.tar.gz --instance-only
-
-The ending line 'lxc list debian-netio' prints out the IP address on which you can connect to the NETIO interface.
-
 ## Serial interface parameter format
 
 The format for defining a serial device is as follows:
@@ -245,60 +157,6 @@ Shortage of the parameter definition is support, so for not defined parameter th
     
     # setting 28800,5,E
     "/dev/ttyUSB1,28800,5,E"
-
-## Runtime parameter
-
-Parameter | Default value | Only CmdLine | Description
------------- | ------------- | ------------- | -------------
-app.language | en |  | language for messages
-app.product |  |  | app product
-bs | 32K |  | Buffer size in bytes
-c |  |  | Client network address or TTY port
-cfg.create | false | * | Reset configuration file and exit
-cfg.file | ./netio.json | * | Configuration file
-cfg.reset | false | * | Reset configuration file
-dr | false |  | Act as data receiver
-ds | false |  | Act as data sender
-e |  |  | Expected hash value(s)
-f |  |  | Filename(s) to write to (server) or read from (client)
-h | false | * | show flags description and usage
-hmd | false | * | show flags description and usage in markdown format
-io.connect.timeout | 3000 |  | network server and client dial timeout
-io.file.backups | 3 |  | amount of file backups
-io.readwrite.timeout | 1800000 |  | network read/write timeout
-l | 0 |  | Amount of bytes to send
-lc | 0 |  | Loop count. Must be defined equaly on client and server side
-log.file |  |  | filename to log logFile (use "." for /home/ransom/go/src/netio/netio.log)
-log.filesize | 5242880 |  | max log file size
-log.io | false |  | trace logging
-log.json | false |  | JSON output
-log.sys | false |  | Use OS system logger
-log.verbose | false |  | verbose logging
-ls | 0 |  | Loop sleep between loop steps
-lt | 0 |  | Loop timeout
-nb | false |  | no copyright banner
-r | true |  | Send random bytes or zero bytes
-s |  |  | Server network address or TTY port
-service |  |  | Service operation (simulate,start,stop,restart,install,uninstall)
-service.password |  |  | Service password
-service.timeout | 1000 |  | Service timeout
-service.username |  |  | Service user
-t |  |  | text to send
-test | false | * | Run tests
-test.devices |  | * | Two TTY devices to run transfer tests separated by a dash (i.e. "COM3-COM3"
-tls | false |  | Use TLS
-tls.certificate |  |  | Server TLS PKCS12 certificates & privkey container file or buffer
-tls.ciphers |  |  | TLS ciphers zo use
-tls.insecure | false |  | Use insecure TLS versions and cipher suites
-tls.keylen | 2048 |  | RSA key length
-tls.maxversion | TLS1.3 |  | TLS max version
-tls.minversion | TLS1.2 |  | TLS min version
-tls.mutual |  |  | Mutual TLS PKCS12 certificates & privkey container file or buffer
-tls.password | changeit |  | TLS PKCS12 certificates & privkey container file (P12 format)
-tls.servername | .* |  | TLS expected servername
-tls.verify | false |  | Verify TLS certificates and server name
-v | false |  | output the received content
-y | md5 |  | Hash algorithm (md5, sha224, sha256)
 
 ## Samples
 
