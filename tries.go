@@ -4,7 +4,6 @@ import (
 	"flag"
 	"fmt"
 	"github.com/mpetavy/common"
-	"net"
 	"os"
 	"os/exec"
 	"runtime"
@@ -79,22 +78,15 @@ func TryMain() error {
 		return err
 	}
 
-	_, hostname, err := common.GetHostInfo()
+	hostname, _, hostInfos, err := common.GetHostInfos()
 	if common.Error(err) {
 		hostname = "<na>"
 	}
 
-	addrs, err := common.GetHostInfos(true, false, nil)
-
 	ips := make([]string, 0)
 
-	for _, addr := range addrs {
-		ip, _, err := net.ParseCIDR(addr.Addr.String())
-		if common.Error(err) {
-			return err
-		}
-
-		ips = append(ips, ip.String())
+	for _, hostInfo := range hostInfos {
+		ips = append(ips, hostInfo.IPNet.IP.String())
 	}
 
 	systemInfo, err := common.GetSystemInfo()
