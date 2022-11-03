@@ -29,7 +29,7 @@ var (
 	LDFLAG_DEVELOPER = "mpetavy"                          // will be replaced with ldflag
 	LDFLAG_HOMEPAGE  = "https://github.com/mpetavy/netio" // will be replaced with ldflag
 	LDFLAG_LICENSE   = common.APACHE                      // will be replaced with ldflag
-	LDFLAG_VERSION   = "1.0.13"                           // will be replaced with ldflag
+	LDFLAG_VERSION   = "1.1.0"                            // will be replaced with ldflag
 	LDFLAG_EXPIRE    = ""                                 // will be replaced with ldflag
 	LDFLAG_GIT       = ""                                 // will be replaced with ldflag
 	LDFLAG_BUILD     = ""                                 // will be replaced with ldflag
@@ -205,9 +205,7 @@ func readData(loop int, reader io.Reader) (hash.Hash, int64, time.Duration, erro
 	}
 
 	n, err := common.HandleCopyBufferError(io.CopyBuffer(io.MultiWriter(hasher, writer, verboseOutput), reader, ba))
-	if common.Error(err) {
-		return nil, 0, 0, err
-	}
+	common.WarnError(err)
 
 	d := time.Since(timeoutReader.FirstRead)
 
@@ -278,9 +276,7 @@ func sendData(loop int, writer io.Writer) (hash.Hash, int64, time.Duration, erro
 	start := time.Now()
 
 	n, err := common.HandleCopyBufferError(io.CopyBuffer(io.MultiWriter(hasher, writer), reader, ba))
-	if common.Error(err) {
-		return nil, 0, 0, err
-	}
+	common.WarnError(err)
 
 	d := time.Since(start)
 
