@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/md5"
 	"crypto/sha256"
 	"crypto/tls"
@@ -190,7 +191,9 @@ func readData(loop int, reader io.Reader) (hash.Hash, int64, time.Duration, erro
 	ba := make([]byte, bufferSize)
 
 	if *loopTimeout > 0 {
-		reader = common.NewTimeoutReader(reader, common.MillisecondToDuration(*loopTimeout), false)
+		reader = common.NewTimeoutReader(reader, false, func() (context.Context, context.CancelFunc) {
+			return context.WithTimeout(context.Background(), common.MillisecondToDuration(*loopTimeout))
+		})
 	}
 
 	timeoutReader := reader.(*common.TimeoutReader)
@@ -204,8 +207,10 @@ func readData(loop int, reader io.Reader) (hash.Hash, int64, time.Duration, erro
 		verboseOutput = cw
 	}
 
-	n, err := common.HandleCopyBufferError(io.CopyBuffer(io.MultiWriter(hasher, writer, verboseOutput), reader, ba))
-	common.WarnError(err)
+	n, err := io.CopyBuffer(io.MultiWriter(hasher, writer, verboseOutput), reader, ba)
+	if !common.IsErrTimeout(err) && !common.IsErrNetClosed(err) {
+		common.WarnError(err)
+	}
 
 	d := time.Since(timeoutReader.FirstRead)
 
@@ -266,7 +271,9 @@ func sendData(loop int, writer io.Writer) (hash.Hash, int64, time.Duration, erro
 	ba := make([]byte, bufferSize)
 
 	if len(filenames) == 0 && len(hashExpected) == 0 && *loopTimeout > 0 {
-		reader = common.NewDeadlineReader(reader, common.MillisecondToDuration(*loopTimeout))
+		reader = common.NewTimeoutReader(reader, true, func() (context.Context, context.CancelFunc) {
+			return context.WithTimeout(context.Background(), common.MillisecondToDuration(*loopTimeout))
+		})
 	}
 
 	if length > 0 {
@@ -275,8 +282,10 @@ func sendData(loop int, writer io.Writer) (hash.Hash, int64, time.Duration, erro
 
 	start := time.Now()
 
-	n, err := common.HandleCopyBufferError(io.CopyBuffer(io.MultiWriter(hasher, writer), reader, ba))
-	common.WarnError(err)
+	n, err := io.CopyBuffer(io.MultiWriter(hasher, writer), reader, ba)
+	if !common.IsErrTimeout(err) && !common.IsErrNetClosed(err) {
+		common.WarnError(err)
+	}
 
 	d := time.Since(start)
 
