@@ -188,6 +188,7 @@ func readData(loop int, reader io.Reader) (hash.Hash, int64, time.Duration, erro
 
 	common.Info("Reading bytes ...")
 
+	start := time.Now()
 	ba := make([]byte, bufferSize)
 
 	if *loopTimeout > 0 {
@@ -195,8 +196,6 @@ func readData(loop int, reader io.Reader) (hash.Hash, int64, time.Duration, erro
 			return context.WithTimeout(context.Background(), common.MillisecondToDuration(*loopTimeout))
 		})
 	}
-
-	timeoutReader := reader.(*common.TimeoutReader)
 
 	var cw *consoleWriter
 
@@ -212,7 +211,12 @@ func readData(loop int, reader io.Reader) (hash.Hash, int64, time.Duration, erro
 		common.WarnError(err)
 	}
 
-	d := time.Since(timeoutReader.FirstRead)
+	d := time.Since(start)
+
+	timeoutReader, ok := reader.(*common.TimeoutReader)
+	if ok {
+		d = time.Since(timeoutReader.FirstRead)
+	}
 
 	if cw != nil && !cw.HasEndedWithCRLF {
 		fmt.Printf("\n")
@@ -353,10 +357,6 @@ func start() error {
 	common.Info("Buffer size: %s", common.FormatMemory(bufferSize))
 
 	if mustReceiveData() {
-		if *loopTimeout == 0 {
-			*loopTimeout = 1000
-		}
-
 		if *loopSleep == 0 {
 			*loopSleep = 1000
 		}
