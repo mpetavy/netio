@@ -61,7 +61,7 @@ var (
 )
 
 func init() {
-	common.Init(true, LDFLAG_VERSION, LDFLAG_GIT, LDFLAG_BUILD, "2019", "TCP/TTY performance testing tool", LDFLAG_DEVELOPER, LDFLAG_HOMEPAGE, LDFLAG_LICENSE, nil, start, stop, run, 0)
+	common.Init(LDFLAG_VERSION, LDFLAG_GIT, LDFLAG_BUILD, "2019", "TCP/TTY performance testing tool", LDFLAG_DEVELOPER, LDFLAG_HOMEPAGE, LDFLAG_LICENSE, nil, start, stop, run, 0)
 
 	client = flag.String("c", "", "Client network address or TTY port")
 	server = flag.String("s", "", "Server network address or TTY port")
