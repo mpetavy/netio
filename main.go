@@ -74,7 +74,7 @@ func init() {
 	randomBytes = flag.Bool("r", true, "Send random bytes or zero bytes")
 	bufferSizeString = flag.String("bs", "32K", "Buffer size in bytes")
 	loopCount = flag.Int("lc", 1, "Loop count. Must be defined equaly on client and server side")
-	loopTimeout = flag.Int("lt", 0, "Loop timeout")
+	loopTimeout = flag.Int("lt", 1000, "Loop timeout")
 	loopSleep = flag.Int("ls", 0, "Loop sleep between loop steps")
 	text = flag.String("t", "", "text to send")
 	verbose = flag.Bool("v", false, "output the received content")
