@@ -30,7 +30,7 @@ var (
 	LDFLAG_DEVELOPER = "mpetavy"                          // will be replaced with ldflag
 	LDFLAG_HOMEPAGE  = "https://github.com/mpetavy/netio" // will be replaced with ldflag
 	LDFLAG_LICENSE   = common.APACHE                      // will be replaced with ldflag
-	LDFLAG_VERSION   = "1.2.0"                            // will be replaced with ldflag
+	LDFLAG_VERSION   = "1.3.0"                            // will be replaced with ldflag
 	LDFLAG_EXPIRE    = ""                                 // will be replaced with ldflag
 	LDFLAG_GIT       = ""                                 // will be replaced with ldflag
 	LDFLAG_BUILD     = ""                                 // will be replaced with ldflag
