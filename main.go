@@ -434,7 +434,7 @@ func run() error {
 		if mustSendData() && *loopSleep > 0 && ((*loopCount == 0) || ((loop + 1) < *loopCount)) {
 			common.Info("Loop sleep: %v", common.MillisecondToDuration(*loopSleep))
 
-			time.Sleep(common.MillisecondToDuration(*loopSleep))
+			common.Sleep(common.MillisecondToDuration(*loopSleep))
 		}
 	}
 
