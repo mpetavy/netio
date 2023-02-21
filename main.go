@@ -192,9 +192,7 @@ func readData(loop int, reader io.Reader) (hash.Hash, int64, time.Duration, erro
 	ba := make([]byte, bufferSize)
 
 	if *loopTimeout > 0 {
-		reader = common.NewTimeoutReader(reader, false, func() (context.Context, context.CancelFunc) {
-			return context.WithTimeout(context.Background(), common.MillisecondToDuration(*loopTimeout))
-		})
+		reader = common.NewTimeoutReader(reader, false, common.MillisecondToDuration(*loopTimeout))
 	}
 
 	var cw *consoleWriter
@@ -275,9 +273,10 @@ func sendData(loop int, writer io.Writer) (hash.Hash, int64, time.Duration, erro
 	ba := make([]byte, bufferSize)
 
 	if len(filenames) == 0 && len(hashExpected) == 0 && *loopTimeout > 0 {
-		reader = common.NewTimeoutReader(reader, true, func() (context.Context, context.CancelFunc) {
-			return context.WithTimeout(context.Background(), common.MillisecondToDuration(*loopTimeout))
-		})
+		ctx, cancel := context.WithTimeout(context.Background(), common.MillisecondToDuration(*loopTimeout))
+		defer cancel()
+
+		reader = common.NewCtxReader(ctx, reader)
 	}
 
 	if length > 0 {
