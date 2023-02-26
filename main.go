@@ -1,16 +1,19 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"crypto/md5"
 	"crypto/sha256"
 	"crypto/tls"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"hash"
 	"io"
 	"math"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -35,6 +38,9 @@ var (
 	LDFLAG_GIT       = ""                                 // will be replaced with ldflag
 	LDFLAG_BUILD     = ""                                 // will be replaced with ldflag
 
+	HL7Start = []byte{0xb}
+	HL7End   = []byte{0x1c, 0xd}
+
 	client           *string
 	server           *string
 	filenames        common.MultiValueFlag
@@ -52,6 +58,9 @@ var (
 	text             *string
 	verbose          *bool
 	lengthString     *string
+	hl7              *bool
+	prefix           *string
+	suffix           *string
 
 	isClient    bool
 	device      string
@@ -79,6 +88,9 @@ func init() {
 	text = flag.String("t", "", "text to send")
 	verbose = flag.Bool("v", false, "output the received content")
 	lengthString = flag.String("l", "0", "Amount of bytes to send")
+	hl7 = flag.Bool("hl7", false, "HL7 message processing")
+	prefix = flag.String("prefix", "", "Prefix per message frame")
+	suffix = flag.String("suffix", "", "Suffix per message frame")
 
 	common.Events.AddListener(common.EventFlagsParsed{}, func(event common.Event) {
 		if *server != "" && !common.IsRunningAsService() {
@@ -155,6 +167,69 @@ func (this *consoleWriter) Write(p []byte) (n int, err error) {
 	return fmt.Printf("%s", txt)
 }
 
+func readMessage(loop int, reader io.Reader) error {
+	hasher, err := openHasher()
+	if common.Error(err) {
+		return err
+	}
+
+	common.Info("Reading messages ...")
+
+	ba := make([]byte, bufferSize)
+
+	if *loopTimeout > 0 {
+		reader = common.NewTimeoutReader(reader, false, common.MillisecondToDuration(*loopTimeout))
+	}
+
+	var cw *consoleWriter
+
+	verboseOutput := io.Discard
+	if *verbose {
+		cw = &consoleWriter{}
+
+		verboseOutput = cw
+	}
+
+	scanner := bufio.NewScanner(reader)
+	scanner.Buffer(ba, len(ba))
+
+	sf, err := common.NewSeparatorSplitFunc(HL7Start, HL7End, true)
+	if common.Error(err) {
+		return err
+	}
+	scanner.Split(sf)
+
+	for scanner.Scan() {
+		ba := scanner.Bytes()
+
+		filename := ""
+		if len(filenames) > 0 {
+			filename = fmt.Sprintf("message-%s.msg", common.Trim4Path(time.Now().Format(common.SortedDateTimeMilliMask)))
+		}
+
+		common.Info("-- new message -----------------------------------------------")
+		common.Info(string(ba))
+
+		_, err := io.MultiWriter(hasher, verboseOutput).Write(ba)
+		if common.Error(err) {
+			return err
+		}
+
+		if filename != "" {
+			err := os.WriteFile(filepath.Join(filenames[0], filename), ba, common.DefaultFileMode)
+			if common.Error(err) {
+				return err
+			}
+		}
+	}
+
+	if cw != nil && !cw.HasEndedWithCRLF {
+		fmt.Printf("\n")
+	}
+
+	return nil
+}
+
 func readData(loop int, reader io.Reader) (hash.Hash, int64, time.Duration, error) {
 	var writer io.Writer
 	var err error
@@ -204,9 +279,31 @@ func readData(loop int, reader io.Reader) (hash.Hash, int64, time.Duration, erro
 		verboseOutput = cw
 	}
 
-	n, err := io.CopyBuffer(io.MultiWriter(hasher, writer, verboseOutput), reader, ba)
-	if !common.IsErrTimeout(err) && !common.IsErrNetClosed(err) {
-		common.WarnError(err)
+	var n int64
+
+	if *hl7 {
+
+		scanner := bufio.NewScanner(reader)
+		scanner.Buffer(ba, len(ba))
+
+		sf, err := common.NewSeparatorSplitFunc(HL7Start, HL7End, true)
+		if common.Error(err) {
+			return nil, 0, 0, err
+		}
+		scanner.Split(sf)
+
+		for scanner.Scan() {
+			ba := scanner.Bytes()
+
+			common.Info("-- new message -----------------------------------------------")
+			common.Info(string(ba))
+		}
+	} else {
+		var err error
+		n, err = io.CopyBuffer(io.MultiWriter(hasher, writer, verboseOutput), reader, ba)
+		if !common.IsErrTimeout(err) && !common.IsErrNetClosed(err) {
+			common.WarnError(err)
+		}
 	}
 
 	d := time.Since(start)
@@ -295,6 +392,48 @@ func sendData(loop int, writer io.Writer) (hash.Hash, int64, time.Duration, erro
 	return hasher, n, d, nil
 }
 
+func sendMessage(loop int, writer io.Writer) error {
+	for _, filename := range filenames {
+		common.Info("Sending message file content: %v ...", filename)
+
+		ba, err := os.ReadFile(filename)
+		if common.Error(err) {
+			return err
+		}
+
+		if *prefix != "" {
+			fix, err := hex.DecodeString(*prefix)
+			if common.Error(err) {
+				return err
+			}
+
+			_, err = writer.Write(fix)
+			if common.Error(err) {
+				return err
+			}
+		}
+
+		_, err = writer.Write(ba)
+		if common.Error(err) {
+			return err
+		}
+
+		if *suffix != "" {
+			fix, err := hex.DecodeString(*suffix)
+			if common.Error(err) {
+				return err
+			}
+
+			_, err = writer.Write(fix)
+			if common.Error(err) {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
 func calcPerformance(n int64, d time.Duration) string {
 	if d > 0 {
 		bytesPerSecond := int64(math.Round(float64(n) / d.Seconds()))
@@ -317,25 +456,39 @@ func work(loop int, connector common.EndpointConnector) error {
 	}()
 
 	if mustSendData() {
-		hasher, n, duration, err := sendData(loop, connection)
-		if common.Error(err) {
-			return err
+		if *suffix != "" {
+			err := sendMessage(loop, connection)
+			if common.Error(err) {
+				return err
+			}
+		} else {
+			hasher, n, duration, err := sendData(loop, connection)
+			if common.Error(err) {
+				return err
+			}
+
+			common.Info("Bytes sent: %d bytes, about %s", n, calcPerformance(n, duration))
+
+			closeHasher(loop, hasher)
 		}
-
-		common.Info("Bytes sent: %d bytes, about %s", n, calcPerformance(n, duration))
-
-		closeHasher(loop, hasher)
 	}
 
 	if mustReceiveData() {
-		hasher, n, duration, err := readData(loop, connection)
-		if common.Error(err) {
-			return err
+		if *suffix != "" {
+			err := readMessage(loop, connection)
+			if common.Error(err) {
+				return err
+			}
+		} else {
+			hasher, n, duration, err := readData(loop, connection)
+			if common.Error(err) {
+				return err
+			}
+
+			common.Info("Bytes received: %d bytes, about %s", n, calcPerformance(n, duration))
+
+			closeHasher(loop, hasher)
 		}
-
-		common.Info("Bytes received: %d bytes, about %s", n, calcPerformance(n, duration))
-
-		closeHasher(loop, hasher)
 	}
 
 	return nil
@@ -393,6 +546,22 @@ func run() error {
 		device = *client
 	} else {
 		device = *server
+	}
+
+	if *hl7 {
+		*prefix = hex.EncodeToString(HL7Start)
+		*suffix = hex.EncodeToString(HL7End)
+	}
+
+	if *prefix != "" && *suffix == "" {
+		*suffix = *prefix
+		*prefix = ""
+	}
+
+	if mustReceiveData() && *suffix != "" && len(filenames) > 0 {
+		if len(filenames) > 1 || !common.FileExists(filenames[0]) || !common.IsDirectory(filenames[0]) {
+			return common.TraceError(fmt.Errorf("flag filename %s mustd define only 1 existing directory", filenames[0]))
+		}
 	}
 
 	var err error
