@@ -214,9 +214,11 @@ func readMessage(loop int, reader io.Reader) error {
 		filename := ""
 		if len(filenames) > 0 {
 			filename = fmt.Sprintf("message-%s.msg", common.Trim4Path(time.Now().Format(common.SortedDateTimeMilliMask)))
+			common.Info("-- new message %s -----------------------------------------------", filename)
+		} else {
+			common.Info("-- new message -----------------------------------------------")
 		}
 
-		common.Info("-- new message -----------------------------------------------")
 		common.Info(string(ba))
 
 		_, err := io.MultiWriter(hasher, verboseOutput).Write(ba)
@@ -506,6 +508,22 @@ func work(loop int, connector common.EndpointConnector) error {
 func start() error {
 	var err error
 
+	if *hl7 {
+		*prefix = hex.EncodeToString(HL7Start)
+		*suffix = hex.EncodeToString(HL7End)
+	}
+
+	if *prefix != "" && *suffix == "" {
+		*suffix = *prefix
+		*prefix = ""
+	}
+
+	if mustReceiveData() && *suffix != "" && len(filenames) > 0 {
+		if len(filenames) > 1 || !common.FileExists(filenames[0]) || !common.IsDirectory(filenames[0]) {
+			return common.TraceError(fmt.Errorf("flag filename %s mustd define only 1 existing directory", filenames[0]))
+		}
+	}
+
 	bufferSize, err = common.ParseMemory(*bufferSizeString)
 	if common.Error(err) {
 		return err
@@ -535,7 +553,7 @@ func start() error {
 		}
 	}
 
-	if *loopCount == 0 {
+	if *loopCount == 0 && *suffix == "" {
 		if len(filenames) > 0 {
 			*loopCount = len(filenames)
 		} else {
@@ -555,22 +573,6 @@ func run() error {
 		device = *client
 	} else {
 		device = *server
-	}
-
-	if *hl7 {
-		*prefix = hex.EncodeToString(HL7Start)
-		*suffix = hex.EncodeToString(HL7End)
-	}
-
-	if *prefix != "" && *suffix == "" {
-		*suffix = *prefix
-		*prefix = ""
-	}
-
-	if mustReceiveData() && *suffix != "" && len(filenames) > 0 {
-		if len(filenames) > 1 || !common.FileExists(filenames[0]) || !common.IsDirectory(filenames[0]) {
-			return common.TraceError(fmt.Errorf("flag filename %s mustd define only 1 existing directory", filenames[0]))
-		}
 	}
 
 	var err error
