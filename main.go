@@ -190,13 +190,22 @@ func readMessage(loop int, reader io.Reader) error {
 		verboseOutput = cw
 	}
 
-	scanner := bufio.NewScanner(reader)
-	scanner.Buffer(ba, len(ba))
-
-	sf, err := common.NewSeparatorSplitFunc(HL7Start, HL7End, true)
+	p, err := hex.DecodeString(*prefix)
 	if common.Error(err) {
 		return err
 	}
+	s, err := hex.DecodeString(*suffix)
+	if common.Error(err) {
+		return err
+	}
+
+	sf, err := common.NewSeparatorSplitFunc(p, s, true)
+	if common.Error(err) {
+		return err
+	}
+
+	scanner := bufio.NewScanner(reader)
+	scanner.Buffer(ba, len(ba))
 	scanner.Split(sf)
 
 	for scanner.Scan() {
