@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"context"
 	"crypto/md5"
 	"crypto/sha256"
 	"crypto/tls"
@@ -241,7 +240,7 @@ func readMessage(loop int, reader io.Reader) error {
 	return nil
 }
 
-func readData(loop int, reader io.Reader) (hash.Hash, int64, time.Duration, error) {
+func readBytes(loop int, reader io.Reader) (hash.Hash, int64, time.Duration, error) {
 	var writer io.Writer
 	var err error
 
@@ -331,7 +330,7 @@ func readData(loop int, reader io.Reader) (hash.Hash, int64, time.Duration, erro
 	return hasher, n, d, nil
 }
 
-func sendData(loop int, writer io.Writer) (hash.Hash, int64, time.Duration, error) {
+func sendBytes(loop int, writer io.Writer) (hash.Hash, int64, time.Duration, error) {
 	var reader io.Reader
 	var err error
 
@@ -381,10 +380,7 @@ func sendData(loop int, writer io.Writer) (hash.Hash, int64, time.Duration, erro
 	ba := make([]byte, bufferSize)
 
 	if len(filenames) == 0 && len(hashExpected) == 0 && *loopTimeout > 0 {
-		ctx, cancel := context.WithTimeout(context.Background(), common.MillisecondToDuration(*loopTimeout))
-		defer cancel()
-
-		reader = common.NewCtxReader(ctx, reader)
+		reader = common.NewTimeoutReader(reader, true, common.MillisecondToDuration(*loopTimeout))
 	}
 
 	if length > 0 {
@@ -473,7 +469,7 @@ func work(loop int, connector common.EndpointConnector) error {
 				return err
 			}
 		} else {
-			hasher, n, duration, err := sendData(loop, connection)
+			hasher, n, duration, err := sendBytes(loop, connection)
 			if common.Error(err) {
 				return err
 			}
@@ -491,7 +487,7 @@ func work(loop int, connector common.EndpointConnector) error {
 				return err
 			}
 		} else {
-			hasher, n, duration, err := readData(loop, connection)
+			hasher, n, duration, err := readBytes(loop, connection)
 			if common.Error(err) {
 				return err
 			}
