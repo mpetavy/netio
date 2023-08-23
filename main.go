@@ -163,7 +163,9 @@ func (this *consoleWriter) Write(p []byte) (n int, err error) {
 
 	this.HasEndedWithCRLF = strings.HasSuffix(txt, "\n")
 
-	return fmt.Printf("%s", txt)
+	fmt.Printf("%s", common.PrintBytes(p, false))
+
+	return len(p), err
 }
 
 func readMessage(loop int, reader io.Reader) error {
