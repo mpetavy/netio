@@ -528,7 +528,7 @@ func start() error {
 	}
 
 	if common.IsTTYDevice(*server) || common.IsTTYDevice(*client) {
-		bufferSize = int64(common.Min(1024, int(bufferSize)))
+		bufferSize = int64(min(1024, int(bufferSize)))
 	}
 
 	common.Info("Buffer size: %s", common.FormatMemory(bufferSize))
