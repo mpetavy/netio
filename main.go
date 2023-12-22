@@ -5,6 +5,7 @@ import (
 	"crypto/md5"
 	"crypto/sha256"
 	"crypto/tls"
+	"embed"
 	"encoding/hex"
 	"flag"
 	"fmt"
@@ -68,8 +69,11 @@ var (
 	length      int64
 )
 
+//go:embed go.mod
+var resources embed.FS
+
 func init() {
-	common.Init("netio", LDFLAG_VERSION, LDFLAG_GIT, LDFLAG_BUILD, "2019", "TCP/TTY performance testing tool", LDFLAG_DEVELOPER, LDFLAG_HOMEPAGE, LDFLAG_LICENSE, nil, start, stop, run, 0)
+	common.Init("", LDFLAG_VERSION, LDFLAG_GIT, LDFLAG_BUILD, "TCP/TTY performance testing tool", LDFLAG_DEVELOPER, LDFLAG_HOMEPAGE, LDFLAG_LICENSE, &resources, start, stop, run, 0)
 
 	client = flag.String("c", "", "Client network address or TTY port")
 	server = flag.String("s", "", "Server network address or TTY port")
