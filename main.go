@@ -263,7 +263,7 @@ func readBytes(loop int, reader io.Reader) (hash.Hash, int64, time.Duration, err
 			return nil, 0, 0, err
 		}
 
-		file, err := os.OpenFile(filename, os.O_CREATE|os.O_APPEND|os.O_RDWR, os.ModePerm)
+		file, err := os.OpenFile(filename, os.O_CREATE|os.O_APPEND|os.O_RDWR, common.DefaultFileMode)
 		if common.Error(err) {
 			return nil, 0, 0, err
 		}
