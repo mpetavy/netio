@@ -369,7 +369,7 @@ func sendBytes(loop int, writer io.Writer) (hash.Hash, int64, time.Duration, err
 				return nil, 0, 0, err
 			}
 
-			common.Info("Sending file content: %v %s ...", filename, common.FormatMemory(filesize))
+			common.Info("Sending file content: %v %s ...", filename, common.FormatMemory(uint64(filesize)))
 		} else {
 			if *randomBytes {
 				reader = common.NewRandomReader()
@@ -451,9 +451,9 @@ func calcPerformance(n int64, d time.Duration) string {
 	if d > 0 {
 		bytesPerSecond := int64(math.Round(float64(n) / d.Seconds()))
 
-		return fmt.Sprintf("%s/%.2fs or %s/%v", common.FormatMemory(n), d.Seconds(), common.FormatMemory(bytesPerSecond), time.Second)
+		return fmt.Sprintf("%s/%.2fs or %s/%v", common.FormatMemory(uint64(n)), d.Seconds(), common.FormatMemory(uint64(bytesPerSecond)), time.Second)
 	} else {
-		return fmt.Sprintf("%s/%.2fs", common.FormatMemory(n), d.Seconds())
+		return fmt.Sprintf("%s/%.2fs", common.FormatMemory(uint64(n)), d.Seconds())
 	}
 
 }
@@ -535,7 +535,7 @@ func start() error {
 		bufferSize = int64(min(1024, int(bufferSize)))
 	}
 
-	common.Info("Buffer size: %s", common.FormatMemory(bufferSize))
+	common.Info("Buffer size: %s", common.FormatMemory(uint64(bufferSize)))
 
 	if mustReceiveData() {
 		if *loopSleep == 0 {
