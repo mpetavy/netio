@@ -56,7 +56,7 @@ var (
 	randomBytes      *bool
 	bufferSize       int64
 	text             *string
-	verbose          *bool
+	data             *bool
 	lengthString     *string
 	hl7              *bool
 	prefix           *string
@@ -89,7 +89,7 @@ func init() {
 	loopTimeout = flag.Int("lt", 1000, "Loop timeout")
 	loopSleep = flag.Int("ls", 0, "Loop sleep between loop steps")
 	text = flag.String("t", "", "text to send")
-	verbose = flag.Bool("v", false, "output the received content")
+	data = flag.Bool("d", false, "output the received content")
 	lengthString = flag.String("l", "0", "Amount of bytes to send")
 	hl7 = flag.Bool("hl7", false, "HL7 message processing")
 	prefix = flag.String("prefix", "", "Prefix per message frame")
@@ -189,7 +189,7 @@ func readMessage(loop int, reader io.Reader) error {
 	var cw *consoleWriter
 
 	verboseOutput := io.Discard
-	if *verbose {
+	if *data {
 		cw = &consoleWriter{}
 
 		verboseOutput = cw
@@ -289,7 +289,7 @@ func readBytes(loop int, reader io.Reader) (hash.Hash, int64, time.Duration, err
 	var cw *consoleWriter
 
 	verboseOutput := io.Discard
-	if *verbose {
+	if *data {
 		cw = &consoleWriter{}
 
 		verboseOutput = cw
