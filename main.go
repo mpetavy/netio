@@ -95,7 +95,7 @@ func init() {
 	prefix = flag.String("prefix", "", "Prefix per message frame")
 	suffix = flag.String("suffix", "", "Suffix per message frame")
 
-	common.Events.AddListener(common.EventFlagsParsed{}, func(event common.Event) {
+	common.Events.AddListener(common.EventFlags{}, func(event common.Event) {
 		if *server != "" && !common.IsRunningAsService() {
 			common.Panic(flag.Set(common.FlagNameService, common.SERVICE_SIMULATE))
 		}
